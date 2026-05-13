@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { 
   Coffee, ArrowLeftRight, Flame, ChevronRight, ChevronLeft,
   ShoppingBag, ScanLine, Plus, Minus, Clock, CheckCircle2,
-  Gift, Sparkles
+  Gift, Sparkles, FileText, Calendar, TrendingDown, TrendingUp
 } from 'lucide-react'
 
 // ============ 模擬資料 ============
@@ -20,12 +20,68 @@ const TEMP_STYLE = {
   cold: 'bg-blue-100 text-blue-700'
 }
 
-// 範例 QR 內容(假裝店員產生的)
 const SAMPLE_QR_DATA = [
   { itemId: 'cappuccino', name: '卡布奇諾', qty: 2, temp: 'hot', interchangeable: false, grantedBy: '小芬' },
   { itemId: 'caramel', name: '焦糖瑪奇朵', qty: 3, interchangeable: true, allowedTemps: ['hot', 'cold'], grantedBy: '阿宏' },
   { itemId: 'americano', name: '美式咖啡', qty: 5, interchangeable: true, allowedTemps: ['hot', 'cold'], grantedBy: '老闆 · 彥' },
 ]
+
+// 初始歷史紀錄(模擬之前的活動)
+const INITIAL_HISTORY = [
+  { 
+    type: 'order', 
+    orderNumber: 'A038',
+    items: [{ name: '拿鐵', temp: 'cold', qty: 1 }],
+    timestamp: Date.now() - 1000 * 60 * 60 * 24 * 2 // 2 天前
+  },
+  { 
+    type: 'grant',
+    grantedBy: '老闆 · 彥',
+    name: '拿鐵',
+    qty: 10,
+    interchangeable: true,
+    timestamp: Date.now() - 1000 * 60 * 60 * 24 * 5 // 5 天前
+  },
+  { 
+    type: 'order', 
+    orderNumber: 'A024',
+    items: [
+      { name: '美式咖啡', temp: 'hot', qty: 1 },
+      { name: '摩卡', temp: 'hot', qty: 1 }
+    ],
+    timestamp: Date.now() - 1000 * 60 * 60 * 24 * 10 // 10 天前
+  },
+  { 
+    type: 'grant',
+    grantedBy: '小芬',
+    name: '美式咖啡',
+    qty: 10,
+    interchangeable: true,
+    timestamp: Date.now() - 1000 * 60 * 60 * 24 * 14 // 14 天前
+  },
+  { 
+    type: 'grant',
+    grantedBy: '阿宏',
+    name: '摩卡',
+    qty: 5,
+    temp: 'hot',
+    timestamp: Date.now() - 1000 * 60 * 60 * 24 * 20 // 20 天前
+  },
+]
+
+// 把毫秒時間戳轉成「X 分鐘前 / X 小時前 / X 天前」
+function formatTimeAgo(timestamp) {
+  const diff = Date.now() - timestamp
+  const minutes = Math.floor(diff / 1000 / 60)
+  if (minutes < 1) return '剛剛'
+  if (minutes < 60) return `${minutes} 分鐘前`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} 小時前`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `${days} 天前`
+  const months = Math.floor(days / 30)
+  return `${months} 個月前`
+}
 
 export default function App() {
   const [view, setView] = useState('customer')
@@ -71,7 +127,7 @@ export default function App() {
       </main>
       
       <footer className="text-center py-8 text-amber-200/30 text-xs italic">
-        Prototype · 福龍門市寄杯系統 · v0.6
+        Prototype · 福龍門市寄杯系統 · v0.7
       </footer>
     </div>
   )
@@ -81,7 +137,8 @@ function CustomerView() {
   const [page, setPage] = useState('home')
   const [balance, setBalance] = useState(INITIAL_BALANCE)
   const [pendingOrder, setPendingOrder] = useState(null)
-  const [claimData, setClaimData] = useState(null) // 待領取的 QR 內容
+  const [claimData, setClaimData] = useState(null)
+  const [history, setHistory] = useState(INITIAL_HISTORY)
   
   function handleSubmitOrder(selectedItems) {
     const orderNumber = 'A' + String(Math.floor(Math.random() * 900) + 100)
@@ -94,6 +151,12 @@ function CustomerView() {
       return { ...b, count: b.count - usedFromThis }
     })
     setBalance(newBalance)
+    
+    // 加入歷史紀錄
+    setHistory([
+      { type: 'order', orderNumber, items: selectedItems, timestamp: Date.now() },
+      ...history
+    ])
     setPage('order')
   }
   
@@ -110,7 +173,6 @@ function CustomerView() {
   function handleConfirmClaim() {
     if (!claimData) return
     
-    // 加入或更新 balance 中對應的品項
     const existing = balance.find(b => b.itemId === claimData.itemId)
     let newBalance
     if (existing) {
@@ -133,6 +195,21 @@ function CustomerView() {
       ]
     }
     setBalance(newBalance)
+    
+    // 加入歷史紀錄
+    setHistory([
+      { 
+        type: 'grant',
+        grantedBy: claimData.grantedBy,
+        name: claimData.name,
+        qty: claimData.qty,
+        interchangeable: claimData.interchangeable,
+        temp: claimData.temp,
+        timestamp: Date.now()
+      },
+      ...history
+    ])
+    
     setClaimData(null)
     setPage('home')
   }
@@ -149,16 +226,20 @@ function CustomerView() {
   if (page === 'claim' && claimData) {
     return <CustomerClaim claimData={claimData} onBack={() => setPage('home')} onConfirm={handleConfirmClaim} />
   }
+  if (page === 'history') {
+    return <CustomerHistory history={history} onBack={() => setPage('home')} />
+  }
   return <CustomerHome 
     balance={balance} 
     onUse={() => setPage('use')} 
     onScan={() => setPage('scan')}
+    onHistory={() => setPage('history')}
     pendingOrder={pendingOrder} 
     onViewOrder={() => setPage('order')} 
   />
 }
 
-function CustomerHome({ balance, onUse, onScan, pendingOrder, onViewOrder }) {
+function CustomerHome({ balance, onUse, onScan, onHistory, pendingOrder, onViewOrder }) {
   const totalCups = balance.reduce((sum, item) => sum + item.count, 0)
   
   return (
@@ -201,7 +282,7 @@ function CustomerHome({ balance, onUse, onScan, pendingOrder, onViewOrder }) {
       <div className="bg-amber-50 rounded-3xl p-6 shadow-xl">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-amber-900 font-bold text-base">我的寄杯卡</h3>
-          <button className="text-amber-700/70 text-xs flex items-center gap-1 hover:text-amber-900">
+          <button onClick={onHistory} className="text-amber-700/70 text-xs flex items-center gap-1 hover:text-amber-900 transition">
             歷史紀錄
             <ChevronRight className="w-3 h-3" />
           </button>
@@ -384,9 +465,7 @@ function CustomerOrder({ order, onDone }) {
   )
 }
 
-// ============ 掃 QR 領取(模擬掃描)============
 function CustomerScan({ onBack, onSuccess }) {
-  // 3 秒後「自動掃到」隨機 QR 內容
   useEffect(() => {
     const timer = setTimeout(() => {
       const sample = SAMPLE_QR_DATA[Math.floor(Math.random() * SAMPLE_QR_DATA.length)]
@@ -400,25 +479,17 @@ function CustomerScan({ onBack, onSuccess }) {
       <button onClick={onBack} className="flex items-center gap-1 text-amber-700 mb-4 hover:text-amber-900 transition">
         <ChevronLeft className="w-4 h-4" />返回
       </button>
-      
       <h2 className="text-amber-900 font-bold text-xl mb-1">掃 QR 領取</h2>
       <p className="text-amber-700/70 text-sm mb-6">請對準店員手機上的 QR 碼</p>
       
-      {/* 模擬掃描器外觀 */}
       <div className="relative bg-black rounded-3xl aspect-square overflow-hidden mb-6">
-        {/* 掃描框 */}
         <div className="absolute inset-8 border-2 border-amber-400/60 rounded-2xl">
-          {/* 四個角的角標 */}
           <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-amber-400 rounded-tl-2xl" />
           <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-amber-400 rounded-tr-2xl" />
           <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-amber-400 rounded-bl-2xl" />
           <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-amber-400 rounded-br-2xl" />
         </div>
-        
-        {/* 掃描動畫線 */}
         <div className="absolute inset-x-8 h-0.5 bg-amber-400 shadow-[0_0_20px_#fbbf24] animate-scan-line" />
-        
-        {/* 中央提示文字 */}
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <ScanLine className="w-12 h-12 text-amber-300/40" />
           <p className="text-amber-300/70 text-sm mt-4">正在尋找 QR 碼…</p>
@@ -446,7 +517,6 @@ function CustomerScan({ onBack, onSuccess }) {
   )
 }
 
-// ============ 領取確認 ============
 function CustomerClaim({ claimData, onBack, onConfirm }) {
   const isInterchangeable = claimData.interchangeable
   const isHot = claimData.temp === 'hot'
@@ -456,7 +526,6 @@ function CustomerClaim({ claimData, onBack, onConfirm }) {
       <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-amber-200 to-amber-400 flex items-center justify-center mb-4 shadow-lg">
         <Gift className="w-12 h-12 text-amber-800" />
       </div>
-      
       <h2 className="text-amber-900 font-bold text-2xl mb-1">收到一份寄杯!</h2>
       <p className="text-amber-700/70 text-sm mb-6">由 <strong>{claimData.grantedBy}</strong> 發放</p>
       
@@ -471,7 +540,6 @@ function CustomerClaim({ claimData, onBack, onConfirm }) {
             <span className="px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 text-[10px] font-medium">熱</span>
           ) : null}
         </div>
-        
         <div className="flex items-baseline justify-center gap-2">
           <span className="text-amber-700 text-sm">數量</span>
           <span className="text-amber-900 font-bold text-5xl">{claimData.qty}</span>
@@ -485,12 +553,144 @@ function CustomerClaim({ claimData, onBack, onConfirm }) {
       </div>
       
       <div className="grid grid-cols-2 gap-3">
-        <button onClick={onBack} className="bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-2xl py-3 font-medium transition">
-          取消
-        </button>
-        <button onClick={onConfirm} className="bg-amber-700 hover:bg-amber-800 text-white rounded-2xl py-3 font-medium transition">
-          確認領取
-        </button>
+        <button onClick={onBack} className="bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-2xl py-3 font-medium transition">取消</button>
+        <button onClick={onConfirm} className="bg-amber-700 hover:bg-amber-800 text-white rounded-2xl py-3 font-medium transition">確認領取</button>
+      </div>
+    </div>
+  )
+}
+
+// ============ 歷史紀錄 ============
+function CustomerHistory({ history, onBack }) {
+  // 統計
+  const totalOrders = history.filter(h => h.type === 'order').length
+  const totalGrants = history.filter(h => h.type === 'grant').length
+  const totalUsed = history
+    .filter(h => h.type === 'order')
+    .reduce((sum, h) => sum + h.items.reduce((s, i) => s + i.qty, 0), 0)
+  const totalReceived = history
+    .filter(h => h.type === 'grant')
+    .reduce((sum, h) => sum + h.qty, 0)
+  
+  return (
+    <div className="bg-amber-50 rounded-3xl p-6 shadow-xl">
+      <button onClick={onBack} className="flex items-center gap-1 text-amber-700 mb-4 hover:text-amber-900 transition">
+        <ChevronLeft className="w-4 h-4" />返回
+      </button>
+      
+      <h2 className="text-amber-900 font-bold text-xl mb-1">歷史紀錄</h2>
+      <p className="text-amber-700/70 text-sm mb-6">您的寄杯活動</p>
+      
+      {/* 統計卡片 */}
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-100 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <TrendingUp className="w-4 h-4 text-green-700" />
+            <span className="text-green-800 text-xs font-medium">收到</span>
+          </div>
+          <div className="flex items-baseline gap-1">
+            <span className="text-green-900 font-bold text-2xl">{totalReceived}</span>
+            <span className="text-green-700 text-xs">杯</span>
+          </div>
+          <div className="text-green-700/70 text-xs mt-0.5">{totalGrants} 次發放</div>
+        </div>
+        
+        <div className="bg-gradient-to-br from-rose-50 to-pink-50 border border-rose-100 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <TrendingDown className="w-4 h-4 text-rose-700" />
+            <span className="text-rose-800 text-xs font-medium">已用</span>
+          </div>
+          <div className="flex items-baseline gap-1">
+            <span className="text-rose-900 font-bold text-2xl">{totalUsed}</span>
+            <span className="text-rose-700 text-xs">杯</span>
+          </div>
+          <div className="text-rose-700/70 text-xs mt-0.5">{totalOrders} 筆訂單</div>
+        </div>
+      </div>
+      
+      {/* 時間軸 */}
+      {history.length === 0 ? (
+        <div className="bg-amber-100 rounded-2xl p-8 text-center text-amber-700/70 text-sm">
+          目前沒有紀錄
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {history.map((entry, i) => (
+            <HistoryEntry key={i} entry={entry} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function HistoryEntry({ entry }) {
+  if (entry.type === 'grant') {
+    // 收到寄杯
+    const isInterchangeable = entry.interchangeable
+    const isHot = entry.temp === 'hot'
+    
+    return (
+      <div className="bg-white rounded-2xl p-4 border-l-4 border-green-400">
+        <div className="flex items-start justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+              <Gift className="w-4 h-4 text-green-700" />
+            </div>
+            <div>
+              <div className="text-amber-900 font-medium text-sm">收到寄杯</div>
+              <div className="text-amber-700/60 text-xs">由 {entry.grantedBy} 發放</div>
+            </div>
+          </div>
+          <div className="text-amber-700/60 text-xs">{formatTimeAgo(entry.timestamp)}</div>
+        </div>
+        
+        <div className="flex items-center justify-between pl-10">
+          <div className="flex items-center gap-2">
+            <span className="text-amber-900 font-medium text-sm">{entry.name}</span>
+            {isInterchangeable ? (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px]">
+                <ArrowLeftRight className="w-2 h-2" />冰熱可選
+              </span>
+            ) : isHot ? (
+              <span className="px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 text-[10px]">熱</span>
+            ) : null}
+          </div>
+          <span className="text-green-700 font-bold text-sm">+ {entry.qty} 杯</span>
+        </div>
+      </div>
+    )
+  }
+  
+  // 訂單
+  const totalQty = entry.items.reduce((sum, i) => sum + i.qty, 0)
+  
+  return (
+    <div className="bg-white rounded-2xl p-4 border-l-4 border-rose-400">
+      <div className="flex items-start justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center flex-shrink-0">
+            <ShoppingBag className="w-4 h-4 text-rose-700" />
+          </div>
+          <div>
+            <div className="text-amber-900 font-medium text-sm">使用寄杯</div>
+            <div className="text-amber-700/60 text-xs">訂單 #{entry.orderNumber}</div>
+          </div>
+        </div>
+        <div className="text-amber-700/60 text-xs">{formatTimeAgo(entry.timestamp)}</div>
+      </div>
+      
+      <div className="pl-10 space-y-1">
+        {entry.items.map((item, i) => (
+          <div key={i} className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${TEMP_STYLE[item.temp]}`}>{TEMP_LABEL[item.temp]}</span>
+              <span className="text-amber-900 text-sm">{item.name}</span>
+            </div>
+            <span className="text-rose-700 text-sm">× {item.qty}</span>
+          </div>
+        ))}
+        <div className="text-rose-700 font-bold text-sm text-right pt-1">- {totalQty} 杯</div>
       </div>
     </div>
   )
