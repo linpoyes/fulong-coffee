@@ -1,7 +1,8 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { 
   Coffee, ArrowLeftRight, Flame, ChevronRight, ChevronLeft,
-  ShoppingBag, ScanLine, Plus, Minus, Clock, CheckCircle2
+  ShoppingBag, ScanLine, Plus, Minus, Clock, CheckCircle2,
+  Gift, Sparkles
 } from 'lucide-react'
 
 // ============ 模擬資料 ============
@@ -18,6 +19,13 @@ const TEMP_STYLE = {
   hot: 'bg-orange-100 text-orange-700',
   cold: 'bg-blue-100 text-blue-700'
 }
+
+// 範例 QR 內容(假裝店員產生的)
+const SAMPLE_QR_DATA = [
+  { itemId: 'cappuccino', name: '卡布奇諾', qty: 2, temp: 'hot', interchangeable: false, grantedBy: '小芬' },
+  { itemId: 'caramel', name: '焦糖瑪奇朵', qty: 3, interchangeable: true, allowedTemps: ['hot', 'cold'], grantedBy: '阿宏' },
+  { itemId: 'americano', name: '美式咖啡', qty: 5, interchangeable: true, allowedTemps: ['hot', 'cold'], grantedBy: '老闆 · 彥' },
+]
 
 export default function App() {
   const [view, setView] = useState('customer')
@@ -63,28 +71,22 @@ export default function App() {
       </main>
       
       <footer className="text-center py-8 text-amber-200/30 text-xs italic">
-        Prototype · 福龍門市寄杯系統 · v0.5
+        Prototype · 福龍門市寄杯系統 · v0.6
       </footer>
     </div>
   )
 }
 
-// ============ 客人端:多頁面導航 ============
 function CustomerView() {
-  const [page, setPage] = useState('home') // home | use | order
+  const [page, setPage] = useState('home')
   const [balance, setBalance] = useState(INITIAL_BALANCE)
   const [pendingOrder, setPendingOrder] = useState(null)
+  const [claimData, setClaimData] = useState(null) // 待領取的 QR 內容
   
   function handleSubmitOrder(selectedItems) {
-    // 模擬下訂單:從寄杯扣除 + 產生訂單編號
     const orderNumber = 'A' + String(Math.floor(Math.random() * 900) + 100)
-    setPendingOrder({
-      orderNumber,
-      items: selectedItems,
-      createdAt: Date.now()
-    })
+    setPendingOrder({ orderNumber, items: selectedItems, createdAt: Date.now() })
     
-    // 從 balance 扣除杯數
     const newBalance = balance.map(b => {
       const usedFromThis = selectedItems
         .filter(s => s.itemId === b.itemId)
@@ -100,22 +102,67 @@ function CustomerView() {
     setPage('home')
   }
   
+  function handleScanSuccess(qrData) {
+    setClaimData(qrData)
+    setPage('claim')
+  }
+  
+  function handleConfirmClaim() {
+    if (!claimData) return
+    
+    // 加入或更新 balance 中對應的品項
+    const existing = balance.find(b => b.itemId === claimData.itemId)
+    let newBalance
+    if (existing) {
+      newBalance = balance.map(b => 
+        b.itemId === claimData.itemId 
+          ? { ...b, count: b.count + claimData.qty }
+          : b
+      )
+    } else {
+      newBalance = [
+        ...balance, 
+        { 
+          itemId: claimData.itemId, 
+          name: claimData.name, 
+          count: claimData.qty,
+          interchangeable: claimData.interchangeable,
+          allowedTemps: claimData.allowedTemps,
+          temp: claimData.temp
+        }
+      ]
+    }
+    setBalance(newBalance)
+    setClaimData(null)
+    setPage('home')
+  }
+  
   if (page === 'use') {
     return <CustomerUse balance={balance} onBack={() => setPage('home')} onSubmit={handleSubmitOrder} />
   }
   if (page === 'order' && pendingOrder) {
     return <CustomerOrder order={pendingOrder} onDone={handleClearOrder} />
   }
-  return <CustomerHome balance={balance} onUse={() => setPage('use')} pendingOrder={pendingOrder} onViewOrder={() => setPage('order')} />
+  if (page === 'scan') {
+    return <CustomerScan onBack={() => setPage('home')} onSuccess={handleScanSuccess} />
+  }
+  if (page === 'claim' && claimData) {
+    return <CustomerClaim claimData={claimData} onBack={() => setPage('home')} onConfirm={handleConfirmClaim} />
+  }
+  return <CustomerHome 
+    balance={balance} 
+    onUse={() => setPage('use')} 
+    onScan={() => setPage('scan')}
+    pendingOrder={pendingOrder} 
+    onViewOrder={() => setPage('order')} 
+  />
 }
 
-// ============ 客人首頁 ============
-function CustomerHome({ balance, onUse, pendingOrder, onViewOrder }) {
+function CustomerHome({ balance, onUse, onScan, pendingOrder, onViewOrder }) {
   const totalCups = balance.reduce((sum, item) => sum + item.count, 0)
   
   return (
     <div className="space-y-4">
-      {/* 進行中訂單橫幅 */}
       {pendingOrder && (
         <button onClick={onViewOrder} className="w-full bg-green-700 hover:bg-green-600 rounded-2xl p-4 flex items-center justify-between transition">
           <div className="text-left">
@@ -127,9 +174,7 @@ function CustomerHome({ balance, onUse, pendingOrder, onViewOrder }) {
       )}
       
       <div className="bg-gradient-to-br from-amber-800 to-amber-950 rounded-3xl p-7 shadow-2xl">
-        <p className="text-amber-200/70 text-xs uppercase tracking-widest italic mb-2">
-          Your Coffee Wallet
-        </p>
+        <p className="text-amber-200/70 text-xs uppercase tracking-widest italic mb-2">Your Coffee Wallet</p>
         <h2 className="text-amber-50 text-2xl font-bold mb-1">嗨,小華 👋</h2>
         <p className="text-amber-200/70 text-sm mb-6">您在福龍門市的寄杯</p>
         
@@ -145,7 +190,7 @@ function CustomerHome({ balance, onUse, pendingOrder, onViewOrder }) {
             <div className="text-amber-50 font-medium text-sm mb-0.5">使用寄杯</div>
             <div className="text-amber-100/70 text-xs">點選想喝的</div>
           </button>
-          <button className="bg-amber-50 text-amber-900 rounded-2xl p-4 text-left hover:bg-amber-100 transition">
+          <button onClick={onScan} className="bg-amber-50 text-amber-900 rounded-2xl p-4 text-left hover:bg-amber-100 transition">
             <ScanLine className="w-5 h-5 text-amber-900 mb-2" />
             <div className="font-medium text-sm mb-0.5">掃 QR 領取</div>
             <div className="text-amber-700/70 text-xs">店員給的 QR</div>
@@ -205,12 +250,9 @@ function CupCard({ item }) {
   )
 }
 
-// ============ 使用寄杯(下訂單)============
 function CustomerUse({ balance, onBack, onSubmit }) {
-  // selected 的結構:{ 'americano-hot': 2, 'latte-cold': 1, ... }
   const [selected, setSelected] = useState({})
   
-  // 算某個 balance 條目目前被選了幾杯(互換品項要把所有溫度加總)
   function getTotalSelectedForBalance(b) {
     if (b.interchangeable) {
       return (b.allowedTemps || ['hot', 'cold']).reduce(
@@ -238,15 +280,12 @@ function CustomerUse({ balance, onBack, onSubmit }) {
   
   function handleSubmit() {
     if (totalSelected === 0) return
-    // 把 selected 轉成清單
     const items = []
     balance.forEach(b => {
       const temps = b.interchangeable ? (b.allowedTemps || ['hot', 'cold']) : [b.temp]
       temps.forEach(t => {
         const qty = selected[`${b.itemId}-${t}`] || 0
-        if (qty > 0) {
-          items.push({ itemId: b.itemId, name: b.name, temp: t, qty })
-        }
+        if (qty > 0) items.push({ itemId: b.itemId, name: b.name, temp: t, qty })
       })
     })
     onSubmit(items)
@@ -257,7 +296,6 @@ function CustomerUse({ balance, onBack, onSubmit }) {
       <button onClick={onBack} className="flex items-center gap-1 text-amber-700 mb-4 hover:text-amber-900 transition">
         <ChevronLeft className="w-4 h-4" />返回
       </button>
-      
       <h2 className="text-amber-900 font-bold text-xl mb-1">使用寄杯</h2>
       <p className="text-amber-700/70 text-sm mb-6">點 + 選擇想喝的</p>
       
@@ -275,34 +313,21 @@ function CustomerUse({ balance, onBack, onSubmit }) {
                   <div className="text-amber-700/70 text-xs">剩 {remaining} 杯可選</div>
                 </div>
                 {b.interchangeable && (
-                  <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-medium">
-                    冰熱可選
-                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-medium">冰熱可選</span>
                 )}
               </div>
-              
               <div className="space-y-2">
                 {temps.map(t => {
                   const qty = selected[`${b.itemId}-${t}`] || 0
                   return (
                     <div key={t} className="flex items-center justify-between">
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${TEMP_STYLE[t]}`}>
-                        {TEMP_LABEL[t]}
-                      </span>
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${TEMP_STYLE[t]}`}>{TEMP_LABEL[t]}</span>
                       <div className="flex items-center gap-3">
-                        <button 
-                          onClick={() => decrement(b, t)} 
-                          disabled={qty === 0}
-                          className="w-9 h-9 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-900 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition"
-                        >
+                        <button onClick={() => decrement(b, t)} disabled={qty === 0} className="w-9 h-9 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-900 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition">
                           <Minus className="w-4 h-4" />
                         </button>
                         <span className="w-6 text-center text-amber-900 font-bold">{qty}</span>
-                        <button 
-                          onClick={() => increment(b, t)} 
-                          disabled={remaining === 0}
-                          className="w-9 h-9 rounded-full bg-amber-700 hover:bg-amber-800 text-white flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition"
-                        >
+                        <button onClick={() => increment(b, t)} disabled={remaining === 0} className="w-9 h-9 rounded-full bg-amber-700 hover:bg-amber-800 text-white flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition">
                           <Plus className="w-4 h-4" />
                         </button>
                       </div>
@@ -315,25 +340,19 @@ function CustomerUse({ balance, onBack, onSubmit }) {
         })}
       </div>
       
-      <button 
-        onClick={handleSubmit}
-        disabled={totalSelected === 0}
-        className="w-full bg-amber-700 hover:bg-amber-800 disabled:bg-amber-300 disabled:cursor-not-allowed text-white rounded-2xl py-4 font-bold transition"
-      >
+      <button onClick={handleSubmit} disabled={totalSelected === 0} className="w-full bg-amber-700 hover:bg-amber-800 disabled:bg-amber-300 disabled:cursor-not-allowed text-white rounded-2xl py-4 font-bold transition">
         {totalSelected === 0 ? '請選擇至少 1 杯' : `送出訂單(共 ${totalSelected} 杯)`}
       </button>
     </div>
   )
 }
 
-// ============ 訂單追蹤 ============
 function CustomerOrder({ order, onDone }) {
   return (
     <div className="bg-amber-50 rounded-3xl p-6 shadow-xl text-center">
       <div className="w-20 h-20 mx-auto rounded-full bg-green-100 flex items-center justify-center mb-4">
         <CheckCircle2 className="w-12 h-12 text-green-600" />
       </div>
-      
       <h2 className="text-amber-900 font-bold text-2xl mb-1">訂單已送出</h2>
       <p className="text-amber-700/70 text-sm mb-1">訂單編號</p>
       <p className="text-amber-900 font-bold text-3xl mb-6">#{order.orderNumber}</p>
@@ -344,9 +363,7 @@ function CustomerOrder({ order, onDone }) {
           {order.items.map((item, i) => (
             <div key={i} className="flex items-center justify-between text-amber-900">
               <div className="flex items-center gap-2">
-                <span className={`px-2 py-0.5 rounded-full text-xs ${TEMP_STYLE[item.temp]}`}>
-                  {TEMP_LABEL[item.temp]}
-                </span>
+                <span className={`px-2 py-0.5 rounded-full text-xs ${TEMP_STYLE[item.temp]}`}>{TEMP_LABEL[item.temp]}</span>
                 <span className="font-medium">{item.name}</span>
               </div>
               <span className="text-amber-700 text-sm">× {item.qty}</span>
@@ -357,22 +374,128 @@ function CustomerOrder({ order, onDone }) {
       
       <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-6 flex items-center gap-3 text-left">
         <Clock className="w-5 h-5 text-blue-600 flex-shrink-0" />
-        <div className="text-blue-900 text-sm">
-          請至福龍門市取杯,店員會通知您
-        </div>
+        <div className="text-blue-900 text-sm">請至福龍門市取杯,店員會通知您</div>
       </div>
       
-      <button 
-        onClick={onDone}
-        className="w-full bg-amber-700 hover:bg-amber-800 text-white rounded-2xl py-3 font-medium transition"
-      >
+      <button onClick={onDone} className="w-full bg-amber-700 hover:bg-amber-800 text-white rounded-2xl py-3 font-medium transition">
         返回首頁
       </button>
     </div>
   )
 }
 
-// ============ 門市端(待搬移)============
+// ============ 掃 QR 領取(模擬掃描)============
+function CustomerScan({ onBack, onSuccess }) {
+  // 3 秒後「自動掃到」隨機 QR 內容
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const sample = SAMPLE_QR_DATA[Math.floor(Math.random() * SAMPLE_QR_DATA.length)]
+      onSuccess(sample)
+    }, 2800)
+    return () => clearTimeout(timer)
+  }, [onSuccess])
+  
+  return (
+    <div className="bg-amber-50 rounded-3xl p-6 shadow-xl">
+      <button onClick={onBack} className="flex items-center gap-1 text-amber-700 mb-4 hover:text-amber-900 transition">
+        <ChevronLeft className="w-4 h-4" />返回
+      </button>
+      
+      <h2 className="text-amber-900 font-bold text-xl mb-1">掃 QR 領取</h2>
+      <p className="text-amber-700/70 text-sm mb-6">請對準店員手機上的 QR 碼</p>
+      
+      {/* 模擬掃描器外觀 */}
+      <div className="relative bg-black rounded-3xl aspect-square overflow-hidden mb-6">
+        {/* 掃描框 */}
+        <div className="absolute inset-8 border-2 border-amber-400/60 rounded-2xl">
+          {/* 四個角的角標 */}
+          <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-amber-400 rounded-tl-2xl" />
+          <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-amber-400 rounded-tr-2xl" />
+          <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-amber-400 rounded-bl-2xl" />
+          <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-amber-400 rounded-br-2xl" />
+        </div>
+        
+        {/* 掃描動畫線 */}
+        <div className="absolute inset-x-8 h-0.5 bg-amber-400 shadow-[0_0_20px_#fbbf24] animate-scan-line" />
+        
+        {/* 中央提示文字 */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <ScanLine className="w-12 h-12 text-amber-300/40" />
+          <p className="text-amber-300/70 text-sm mt-4">正在尋找 QR 碼…</p>
+        </div>
+      </div>
+      
+      <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-start gap-3 text-left">
+        <Sparkles className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+        <div className="text-blue-900 text-xs">
+          <div className="font-medium mb-1">展示模式</div>
+          <div className="opacity-80">3 秒後自動模擬掃到一個 QR 碼,實際上線會接相機 + QR 解碼。</div>
+        </div>
+      </div>
+      
+      <style>{`
+        @keyframes scan-line {
+          0%, 100% { transform: translateY(2rem); }
+          50% { transform: translateY(calc(100% - 2.5rem)); }
+        }
+        .animate-scan-line {
+          animation: scan-line 2s ease-in-out infinite;
+        }
+      `}</style>
+    </div>
+  )
+}
+
+// ============ 領取確認 ============
+function CustomerClaim({ claimData, onBack, onConfirm }) {
+  const isInterchangeable = claimData.interchangeable
+  const isHot = claimData.temp === 'hot'
+  
+  return (
+    <div className="bg-amber-50 rounded-3xl p-6 shadow-xl text-center">
+      <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-amber-200 to-amber-400 flex items-center justify-center mb-4 shadow-lg">
+        <Gift className="w-12 h-12 text-amber-800" />
+      </div>
+      
+      <h2 className="text-amber-900 font-bold text-2xl mb-1">收到一份寄杯!</h2>
+      <p className="text-amber-700/70 text-sm mb-6">由 <strong>{claimData.grantedBy}</strong> 發放</p>
+      
+      <div className="bg-white rounded-2xl p-5 mb-6">
+        <div className="flex items-center justify-center gap-2 mb-3">
+          <span className="text-amber-900 font-bold text-xl">{claimData.name}</span>
+          {isInterchangeable ? (
+            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-medium">
+              <ArrowLeftRight className="w-2.5 h-2.5" />冰熱可選
+            </span>
+          ) : isHot ? (
+            <span className="px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 text-[10px] font-medium">熱</span>
+          ) : null}
+        </div>
+        
+        <div className="flex items-baseline justify-center gap-2">
+          <span className="text-amber-700 text-sm">數量</span>
+          <span className="text-amber-900 font-bold text-5xl">{claimData.qty}</span>
+          <span className="text-amber-900 text-xl">杯</span>
+        </div>
+      </div>
+      
+      <div className="bg-amber-100 border border-amber-200 rounded-2xl p-4 mb-6 text-left">
+        <div className="text-xs text-amber-700 uppercase tracking-wider mb-1">確認後</div>
+        <div className="text-amber-900 text-sm">這 {claimData.qty} 杯會加入您的寄杯卡,可以慢慢喝 ☕</div>
+      </div>
+      
+      <div className="grid grid-cols-2 gap-3">
+        <button onClick={onBack} className="bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-2xl py-3 font-medium transition">
+          取消
+        </button>
+        <button onClick={onConfirm} className="bg-amber-700 hover:bg-amber-800 text-white rounded-2xl py-3 font-medium transition">
+          確認領取
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function StoreView() {
   return (
     <div className="bg-amber-50 text-amber-900 rounded-3xl p-8 shadow-2xl">
