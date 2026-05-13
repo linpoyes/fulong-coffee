@@ -2,23 +2,24 @@ import React, { useState, useEffect, useRef } from 'react'
 import { 
   Coffee, ArrowLeftRight, Flame, ChevronRight, ChevronLeft,
   ShoppingBag, ScanLine, Plus, Minus, Clock, CheckCircle2,
-  Gift, Sparkles, FileText, Calendar, TrendingDown, TrendingUp
+  Gift, Sparkles, FileText, Calendar, TrendingDown, TrendingUp,
+  LogOut, User, Award, Settings, Bell, AlertCircle, UserPlus
 } from 'lucide-react'
 
-// ============ 模擬資料 ============
-const INITIAL_BALANCE = [
-  { itemId: 'americano', name: '美式咖啡', count: 8, interchangeable: true, allowedTemps: ['hot', 'cold'] },
-  { itemId: 'latte', name: '拿鐵', count: 5, interchangeable: true, allowedTemps: ['hot', 'cold'] },
-  { itemId: 'mocha', name: '摩卡', count: 3, temp: 'hot' },
-]
-
+// ============ 共用資料 ============
 const CUP_LIMIT = 60
-
 const TEMP_LABEL = { hot: '熱', cold: '冰' }
 const TEMP_STYLE = {
   hot: 'bg-orange-100 text-orange-700',
   cold: 'bg-blue-100 text-blue-700'
 }
+
+// ============ 客人端初始資料 ============
+const INITIAL_BALANCE = [
+  { itemId: 'americano', name: '美式咖啡', count: 8, interchangeable: true, allowedTemps: ['hot', 'cold'] },
+  { itemId: 'latte', name: '拿鐵', count: 5, interchangeable: true, allowedTemps: ['hot', 'cold'] },
+  { itemId: 'mocha', name: '摩卡', count: 3, temp: 'hot' },
+]
 
 const SAMPLE_QR_DATA = [
   { itemId: 'cappuccino', name: '卡布奇諾', qty: 2, temp: 'hot', interchangeable: false, grantedBy: '小芬' },
@@ -26,50 +27,44 @@ const SAMPLE_QR_DATA = [
   { itemId: 'americano', name: '美式咖啡', qty: 5, interchangeable: true, allowedTemps: ['hot', 'cold'], grantedBy: '老闆 · 彥' },
 ]
 
-// 初始歷史紀錄(模擬之前的活動)
 const INITIAL_HISTORY = [
+  { type: 'order', orderNumber: 'A038', items: [{ name: '拿鐵', temp: 'cold', qty: 1 }], timestamp: Date.now() - 1000 * 60 * 60 * 24 * 2 },
+  { type: 'grant', grantedBy: '老闆 · 彥', name: '拿鐵', qty: 10, interchangeable: true, timestamp: Date.now() - 1000 * 60 * 60 * 24 * 5 },
+  { type: 'order', orderNumber: 'A024', items: [{ name: '美式咖啡', temp: 'hot', qty: 1 }, { name: '摩卡', temp: 'hot', qty: 1 }], timestamp: Date.now() - 1000 * 60 * 60 * 24 * 10 },
+  { type: 'grant', grantedBy: '小芬', name: '美式咖啡', qty: 10, interchangeable: true, timestamp: Date.now() - 1000 * 60 * 60 * 24 * 14 },
+  { type: 'grant', grantedBy: '阿宏', name: '摩卡', qty: 5, temp: 'hot', timestamp: Date.now() - 1000 * 60 * 60 * 24 * 20 },
+]
+
+// ============ 門市端初始資料 ============
+const INITIAL_ACCOUNTS = [
+  { id: 'acc_owner', label: '老闆帳號', username: '72839168', password: 'bwsrac0221', role: 'owner' },
+  { id: 'acc_partner', label: '門市端帳號', username: '259002', password: '72839168', role: 'partner' },
+]
+
+const INITIAL_HANDLERS = [
+  { id: 'h_owner', name: '彥', isOwner: true },
+  { id: 'h1', name: '小芬' },
+  { id: 'h2', name: '阿宏' },
+]
+
+const INITIAL_ORDERS = [
   { 
-    type: 'order', 
-    orderNumber: 'A038',
-    items: [{ name: '拿鐵', temp: 'cold', qty: 1 }],
-    timestamp: Date.now() - 1000 * 60 * 60 * 24 * 2 // 2 天前
+    id: 'A043', customerName: '陳美麗', minutesAgo: 1, status: 'pending',
+    items: [{ name: '卡布奇諾', temp: 'hot', qty: 3 }]
   },
   { 
-    type: 'grant',
-    grantedBy: '老闆 · 彥',
-    name: '拿鐵',
-    qty: 10,
-    interchangeable: true,
-    timestamp: Date.now() - 1000 * 60 * 60 * 24 * 5 // 5 天前
-  },
-  { 
-    type: 'order', 
-    orderNumber: 'A024',
+    id: 'A042', customerName: '李大華', minutesAgo: 5, status: 'preparing', handlerName: '小芬',
     items: [
-      { name: '美式咖啡', temp: 'hot', qty: 1 },
+      { name: '美式咖啡', temp: 'cold', qty: 1 }, 
       { name: '摩卡', temp: 'hot', qty: 1 }
-    ],
-    timestamp: Date.now() - 1000 * 60 * 60 * 24 * 10 // 10 天前
+    ]
   },
   { 
-    type: 'grant',
-    grantedBy: '小芬',
-    name: '美式咖啡',
-    qty: 10,
-    interchangeable: true,
-    timestamp: Date.now() - 1000 * 60 * 60 * 24 * 14 // 14 天前
-  },
-  { 
-    type: 'grant',
-    grantedBy: '阿宏',
-    name: '摩卡',
-    qty: 5,
-    temp: 'hot',
-    timestamp: Date.now() - 1000 * 60 * 60 * 24 * 20 // 20 天前
+    id: 'A041', customerName: '王小明', minutesAgo: 12, status: 'ready', handlerName: '阿宏',
+    items: [{ name: '拿鐵', temp: 'hot', qty: 2 }] 
   },
 ]
 
-// 把毫秒時間戳轉成「X 分鐘前 / X 小時前 / X 天前」
 function formatTimeAgo(timestamp) {
   const diff = Date.now() - timestamp
   const minutes = Math.floor(diff / 1000 / 60)
@@ -83,6 +78,7 @@ function formatTimeAgo(timestamp) {
   return `${months} 個月前`
 }
 
+// ============ 主元件 ============
 export default function App() {
   const [view, setView] = useState('customer')
   const [storeUnlocked, setStoreUnlocked] = useState(false)
@@ -122,17 +118,18 @@ export default function App() {
         )}
       </header>
       
-      <main className="max-w-md mx-auto px-6 py-4">
+      <main className={view === 'store' ? "max-w-2xl mx-auto px-6 py-4" : "max-w-md mx-auto px-6 py-4"}>
         {view === 'customer' ? <CustomerView /> : <StoreView />}
       </main>
       
       <footer className="text-center py-8 text-amber-200/30 text-xs italic">
-        Prototype · 福龍門市寄杯系統 · v0.7
+        Prototype · 福龍門市寄杯系統 · v0.8
       </footer>
     </div>
   )
 }
 
+// ============ 客人端(沒變動)============
 function CustomerView() {
   const [page, setPage] = useState('home')
   const [balance, setBalance] = useState(INITIAL_BALANCE)
@@ -143,20 +140,12 @@ function CustomerView() {
   function handleSubmitOrder(selectedItems) {
     const orderNumber = 'A' + String(Math.floor(Math.random() * 900) + 100)
     setPendingOrder({ orderNumber, items: selectedItems, createdAt: Date.now() })
-    
     const newBalance = balance.map(b => {
-      const usedFromThis = selectedItems
-        .filter(s => s.itemId === b.itemId)
-        .reduce((sum, s) => sum + s.qty, 0)
+      const usedFromThis = selectedItems.filter(s => s.itemId === b.itemId).reduce((sum, s) => sum + s.qty, 0)
       return { ...b, count: b.count - usedFromThis }
     })
     setBalance(newBalance)
-    
-    // 加入歷史紀錄
-    setHistory([
-      { type: 'order', orderNumber, items: selectedItems, timestamp: Date.now() },
-      ...history
-    ])
+    setHistory([{ type: 'order', orderNumber, items: selectedItems, timestamp: Date.now() }, ...history])
     setPage('order')
   }
   
@@ -172,76 +161,29 @@ function CustomerView() {
   
   function handleConfirmClaim() {
     if (!claimData) return
-    
     const existing = balance.find(b => b.itemId === claimData.itemId)
     let newBalance
     if (existing) {
-      newBalance = balance.map(b => 
-        b.itemId === claimData.itemId 
-          ? { ...b, count: b.count + claimData.qty }
-          : b
-      )
+      newBalance = balance.map(b => b.itemId === claimData.itemId ? { ...b, count: b.count + claimData.qty } : b)
     } else {
-      newBalance = [
-        ...balance, 
-        { 
-          itemId: claimData.itemId, 
-          name: claimData.name, 
-          count: claimData.qty,
-          interchangeable: claimData.interchangeable,
-          allowedTemps: claimData.allowedTemps,
-          temp: claimData.temp
-        }
-      ]
+      newBalance = [...balance, { itemId: claimData.itemId, name: claimData.name, count: claimData.qty, interchangeable: claimData.interchangeable, allowedTemps: claimData.allowedTemps, temp: claimData.temp }]
     }
     setBalance(newBalance)
-    
-    // 加入歷史紀錄
-    setHistory([
-      { 
-        type: 'grant',
-        grantedBy: claimData.grantedBy,
-        name: claimData.name,
-        qty: claimData.qty,
-        interchangeable: claimData.interchangeable,
-        temp: claimData.temp,
-        timestamp: Date.now()
-      },
-      ...history
-    ])
-    
+    setHistory([{ type: 'grant', grantedBy: claimData.grantedBy, name: claimData.name, qty: claimData.qty, interchangeable: claimData.interchangeable, temp: claimData.temp, timestamp: Date.now() }, ...history])
     setClaimData(null)
     setPage('home')
   }
   
-  if (page === 'use') {
-    return <CustomerUse balance={balance} onBack={() => setPage('home')} onSubmit={handleSubmitOrder} />
-  }
-  if (page === 'order' && pendingOrder) {
-    return <CustomerOrder order={pendingOrder} onDone={handleClearOrder} />
-  }
-  if (page === 'scan') {
-    return <CustomerScan onBack={() => setPage('home')} onSuccess={handleScanSuccess} />
-  }
-  if (page === 'claim' && claimData) {
-    return <CustomerClaim claimData={claimData} onBack={() => setPage('home')} onConfirm={handleConfirmClaim} />
-  }
-  if (page === 'history') {
-    return <CustomerHistory history={history} onBack={() => setPage('home')} />
-  }
-  return <CustomerHome 
-    balance={balance} 
-    onUse={() => setPage('use')} 
-    onScan={() => setPage('scan')}
-    onHistory={() => setPage('history')}
-    pendingOrder={pendingOrder} 
-    onViewOrder={() => setPage('order')} 
-  />
+  if (page === 'use') return <CustomerUse balance={balance} onBack={() => setPage('home')} onSubmit={handleSubmitOrder} />
+  if (page === 'order' && pendingOrder) return <CustomerOrder order={pendingOrder} onDone={handleClearOrder} />
+  if (page === 'scan') return <CustomerScan onBack={() => setPage('home')} onSuccess={handleScanSuccess} />
+  if (page === 'claim' && claimData) return <CustomerClaim claimData={claimData} onBack={() => setPage('home')} onConfirm={handleConfirmClaim} />
+  if (page === 'history') return <CustomerHistory history={history} onBack={() => setPage('home')} />
+  return <CustomerHome balance={balance} onUse={() => setPage('use')} onScan={() => setPage('scan')} onHistory={() => setPage('history')} pendingOrder={pendingOrder} onViewOrder={() => setPage('order')} />
 }
 
 function CustomerHome({ balance, onUse, onScan, onHistory, pendingOrder, onViewOrder }) {
   const totalCups = balance.reduce((sum, item) => sum + item.count, 0)
-  
   return (
     <div className="space-y-4">
       {pendingOrder && (
@@ -253,18 +195,15 @@ function CustomerHome({ balance, onUse, onScan, onHistory, pendingOrder, onViewO
           <ChevronRight className="w-5 h-5 text-green-100" />
         </button>
       )}
-      
       <div className="bg-gradient-to-br from-amber-800 to-amber-950 rounded-3xl p-7 shadow-2xl">
         <p className="text-amber-200/70 text-xs uppercase tracking-widest italic mb-2">Your Coffee Wallet</p>
         <h2 className="text-amber-50 text-2xl font-bold mb-1">嗨,小華 👋</h2>
         <p className="text-amber-200/70 text-sm mb-6">您在福龍門市的寄杯</p>
-        
         <div className="flex items-baseline gap-2 mb-1">
           <span className="text-amber-50 text-6xl font-bold">{totalCups}</span>
           <span className="text-amber-100 text-xl">杯</span>
         </div>
         <p className="text-amber-200/60 text-xs mb-6">總餘額 · 上限 {CUP_LIMIT} 杯</p>
-        
         <div className="grid grid-cols-2 gap-3">
           <button onClick={onUse} className="bg-gradient-to-br from-amber-600 to-amber-700 rounded-2xl p-4 text-left hover:from-amber-500 hover:to-amber-600 transition">
             <ShoppingBag className="w-5 h-5 text-amber-50 mb-2" />
@@ -278,19 +217,14 @@ function CustomerHome({ balance, onUse, onScan, onHistory, pendingOrder, onViewO
           </button>
         </div>
       </div>
-      
       <div className="bg-amber-50 rounded-3xl p-6 shadow-xl">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-amber-900 font-bold text-base">我的寄杯卡</h3>
           <button onClick={onHistory} className="text-amber-700/70 text-xs flex items-center gap-1 hover:text-amber-900 transition">
-            歷史紀錄
-            <ChevronRight className="w-3 h-3" />
+            歷史紀錄<ChevronRight className="w-3 h-3" />
           </button>
         </div>
-        
-        <div className="space-y-3">
-          {balance.map(item => <CupCard key={item.itemId} item={item} />)}
-        </div>
+        <div className="space-y-3">{balance.map(item => <CupCard key={item.itemId} item={item} />)}</div>
       </div>
     </div>
   )
@@ -300,12 +234,9 @@ function CupCard({ item }) {
   const isInterchangeable = item.interchangeable
   const isHot = item.temp === 'hot'
   const progressPercent = Math.min((item.count / 10) * 100, 100)
-  
   return (
     <div className="bg-white rounded-2xl p-4 flex items-center gap-3">
-      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${
-        isInterchangeable ? 'bg-gradient-to-br from-indigo-100 to-purple-100' : 'bg-gradient-to-br from-orange-100 to-rose-100'
-      }`}>
+      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${isInterchangeable ? 'bg-gradient-to-br from-indigo-100 to-purple-100' : 'bg-gradient-to-br from-orange-100 to-rose-100'}`}>
         {isInterchangeable ? <ArrowLeftRight className="w-5 h-5 text-indigo-600" /> : <Flame className="w-5 h-5 text-orange-600" />}
       </div>
       <div className="flex-1 min-w-0">
@@ -333,32 +264,19 @@ function CupCard({ item }) {
 
 function CustomerUse({ balance, onBack, onSubmit }) {
   const [selected, setSelected] = useState({})
-  
   function getTotalSelectedForBalance(b) {
-    if (b.interchangeable) {
-      return (b.allowedTemps || ['hot', 'cold']).reduce(
-        (sum, t) => sum + (selected[`${b.itemId}-${t}`] || 0), 0
-      )
-    }
+    if (b.interchangeable) return (b.allowedTemps || ['hot', 'cold']).reduce((sum, t) => sum + (selected[`${b.itemId}-${t}`] || 0), 0)
     return selected[`${b.itemId}-${b.temp}`] || 0
   }
-  
   function increment(b, temp) {
     const key = `${b.itemId}-${temp}`
-    if (getTotalSelectedForBalance(b) < b.count) {
-      setSelected({ ...selected, [key]: (selected[key] || 0) + 1 })
-    }
+    if (getTotalSelectedForBalance(b) < b.count) setSelected({ ...selected, [key]: (selected[key] || 0) + 1 })
   }
-  
   function decrement(b, temp) {
     const key = `${b.itemId}-${temp}`
-    if ((selected[key] || 0) > 0) {
-      setSelected({ ...selected, [key]: selected[key] - 1 })
-    }
+    if ((selected[key] || 0) > 0) setSelected({ ...selected, [key]: selected[key] - 1 })
   }
-  
   const totalSelected = Object.values(selected).reduce((a, b) => a + b, 0)
-  
   function handleSubmit() {
     if (totalSelected === 0) return
     const items = []
@@ -371,21 +289,16 @@ function CustomerUse({ balance, onBack, onSubmit }) {
     })
     onSubmit(items)
   }
-  
   return (
     <div className="bg-amber-50 rounded-3xl p-6 shadow-xl">
-      <button onClick={onBack} className="flex items-center gap-1 text-amber-700 mb-4 hover:text-amber-900 transition">
-        <ChevronLeft className="w-4 h-4" />返回
-      </button>
+      <button onClick={onBack} className="flex items-center gap-1 text-amber-700 mb-4 hover:text-amber-900 transition"><ChevronLeft className="w-4 h-4" />返回</button>
       <h2 className="text-amber-900 font-bold text-xl mb-1">使用寄杯</h2>
       <p className="text-amber-700/70 text-sm mb-6">點 + 選擇想喝的</p>
-      
       <div className="space-y-3 mb-6">
         {balance.map(b => {
           const temps = b.interchangeable ? (b.allowedTemps || ['hot', 'cold']) : [b.temp]
           const totalThis = getTotalSelectedForBalance(b)
           const remaining = b.count - totalThis
-          
           return (
             <div key={b.itemId} className="bg-white rounded-2xl p-4">
               <div className="flex items-center justify-between mb-3">
@@ -393,9 +306,7 @@ function CustomerUse({ balance, onBack, onSubmit }) {
                   <div className="text-amber-900 font-bold">{b.name}</div>
                   <div className="text-amber-700/70 text-xs">剩 {remaining} 杯可選</div>
                 </div>
-                {b.interchangeable && (
-                  <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-medium">冰熱可選</span>
-                )}
+                {b.interchangeable && <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-medium">冰熱可選</span>}
               </div>
               <div className="space-y-2">
                 {temps.map(t => {
@@ -404,13 +315,9 @@ function CustomerUse({ balance, onBack, onSubmit }) {
                     <div key={t} className="flex items-center justify-between">
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${TEMP_STYLE[t]}`}>{TEMP_LABEL[t]}</span>
                       <div className="flex items-center gap-3">
-                        <button onClick={() => decrement(b, t)} disabled={qty === 0} className="w-9 h-9 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-900 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition">
-                          <Minus className="w-4 h-4" />
-                        </button>
+                        <button onClick={() => decrement(b, t)} disabled={qty === 0} className="w-9 h-9 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-900 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition"><Minus className="w-4 h-4" /></button>
                         <span className="w-6 text-center text-amber-900 font-bold">{qty}</span>
-                        <button onClick={() => increment(b, t)} disabled={remaining === 0} className="w-9 h-9 rounded-full bg-amber-700 hover:bg-amber-800 text-white flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition">
-                          <Plus className="w-4 h-4" />
-                        </button>
+                        <button onClick={() => increment(b, t)} disabled={remaining === 0} className="w-9 h-9 rounded-full bg-amber-700 hover:bg-amber-800 text-white flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition"><Plus className="w-4 h-4" /></button>
                       </div>
                     </div>
                   )
@@ -420,7 +327,6 @@ function CustomerUse({ balance, onBack, onSubmit }) {
           )
         })}
       </div>
-      
       <button onClick={handleSubmit} disabled={totalSelected === 0} className="w-full bg-amber-700 hover:bg-amber-800 disabled:bg-amber-300 disabled:cursor-not-allowed text-white rounded-2xl py-4 font-bold transition">
         {totalSelected === 0 ? '請選擇至少 1 杯' : `送出訂單(共 ${totalSelected} 杯)`}
       </button>
@@ -431,13 +337,10 @@ function CustomerUse({ balance, onBack, onSubmit }) {
 function CustomerOrder({ order, onDone }) {
   return (
     <div className="bg-amber-50 rounded-3xl p-6 shadow-xl text-center">
-      <div className="w-20 h-20 mx-auto rounded-full bg-green-100 flex items-center justify-center mb-4">
-        <CheckCircle2 className="w-12 h-12 text-green-600" />
-      </div>
+      <div className="w-20 h-20 mx-auto rounded-full bg-green-100 flex items-center justify-center mb-4"><CheckCircle2 className="w-12 h-12 text-green-600" /></div>
       <h2 className="text-amber-900 font-bold text-2xl mb-1">訂單已送出</h2>
       <p className="text-amber-700/70 text-sm mb-1">訂單編號</p>
       <p className="text-amber-900 font-bold text-3xl mb-6">#{order.orderNumber}</p>
-      
       <div className="bg-white rounded-2xl p-4 mb-6">
         <div className="text-xs text-amber-700/70 uppercase tracking-wider mb-3">訂購內容</div>
         <div className="space-y-2">
@@ -452,15 +355,11 @@ function CustomerOrder({ order, onDone }) {
           ))}
         </div>
       </div>
-      
       <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-6 flex items-center gap-3 text-left">
         <Clock className="w-5 h-5 text-blue-600 flex-shrink-0" />
         <div className="text-blue-900 text-sm">請至福龍門市取杯,店員會通知您</div>
       </div>
-      
-      <button onClick={onDone} className="w-full bg-amber-700 hover:bg-amber-800 text-white rounded-2xl py-3 font-medium transition">
-        返回首頁
-      </button>
+      <button onClick={onDone} className="w-full bg-amber-700 hover:bg-amber-800 text-white rounded-2xl py-3 font-medium transition">返回首頁</button>
     </div>
   )
 }
@@ -473,15 +372,11 @@ function CustomerScan({ onBack, onSuccess }) {
     }, 2800)
     return () => clearTimeout(timer)
   }, [onSuccess])
-  
   return (
     <div className="bg-amber-50 rounded-3xl p-6 shadow-xl">
-      <button onClick={onBack} className="flex items-center gap-1 text-amber-700 mb-4 hover:text-amber-900 transition">
-        <ChevronLeft className="w-4 h-4" />返回
-      </button>
+      <button onClick={onBack} className="flex items-center gap-1 text-amber-700 mb-4 hover:text-amber-900 transition"><ChevronLeft className="w-4 h-4" />返回</button>
       <h2 className="text-amber-900 font-bold text-xl mb-1">掃 QR 領取</h2>
       <p className="text-amber-700/70 text-sm mb-6">請對準店員手機上的 QR 碼</p>
-      
       <div className="relative bg-black rounded-3xl aspect-square overflow-hidden mb-6">
         <div className="absolute inset-8 border-2 border-amber-400/60 rounded-2xl">
           <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-amber-400 rounded-tl-2xl" />
@@ -495,7 +390,6 @@ function CustomerScan({ onBack, onSuccess }) {
           <p className="text-amber-300/70 text-sm mt-4">正在尋找 QR 碼…</p>
         </div>
       </div>
-      
       <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-start gap-3 text-left">
         <Sparkles className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
         <div className="text-blue-900 text-xs">
@@ -503,16 +397,7 @@ function CustomerScan({ onBack, onSuccess }) {
           <div className="opacity-80">3 秒後自動模擬掃到一個 QR 碼,實際上線會接相機 + QR 解碼。</div>
         </div>
       </div>
-      
-      <style>{`
-        @keyframes scan-line {
-          0%, 100% { transform: translateY(2rem); }
-          50% { transform: translateY(calc(100% - 2.5rem)); }
-        }
-        .animate-scan-line {
-          animation: scan-line 2s ease-in-out infinite;
-        }
-      `}</style>
+      <style>{`@keyframes scan-line { 0%, 100% { transform: translateY(2rem); } 50% { transform: translateY(calc(100% - 2.5rem)); } } .animate-scan-line { animation: scan-line 2s ease-in-out infinite; }`}</style>
     </div>
   )
 }
@@ -520,22 +405,16 @@ function CustomerScan({ onBack, onSuccess }) {
 function CustomerClaim({ claimData, onBack, onConfirm }) {
   const isInterchangeable = claimData.interchangeable
   const isHot = claimData.temp === 'hot'
-  
   return (
     <div className="bg-amber-50 rounded-3xl p-6 shadow-xl text-center">
-      <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-amber-200 to-amber-400 flex items-center justify-center mb-4 shadow-lg">
-        <Gift className="w-12 h-12 text-amber-800" />
-      </div>
+      <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-amber-200 to-amber-400 flex items-center justify-center mb-4 shadow-lg"><Gift className="w-12 h-12 text-amber-800" /></div>
       <h2 className="text-amber-900 font-bold text-2xl mb-1">收到一份寄杯!</h2>
       <p className="text-amber-700/70 text-sm mb-6">由 <strong>{claimData.grantedBy}</strong> 發放</p>
-      
       <div className="bg-white rounded-2xl p-5 mb-6">
         <div className="flex items-center justify-center gap-2 mb-3">
           <span className="text-amber-900 font-bold text-xl">{claimData.name}</span>
           {isInterchangeable ? (
-            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-medium">
-              <ArrowLeftRight className="w-2.5 h-2.5" />冰熱可選
-            </span>
+            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-medium"><ArrowLeftRight className="w-2.5 h-2.5" />冰熱可選</span>
           ) : isHot ? (
             <span className="px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 text-[10px] font-medium">熱</span>
           ) : null}
@@ -546,12 +425,10 @@ function CustomerClaim({ claimData, onBack, onConfirm }) {
           <span className="text-amber-900 text-xl">杯</span>
         </div>
       </div>
-      
       <div className="bg-amber-100 border border-amber-200 rounded-2xl p-4 mb-6 text-left">
         <div className="text-xs text-amber-700 uppercase tracking-wider mb-1">確認後</div>
         <div className="text-amber-900 text-sm">這 {claimData.qty} 杯會加入您的寄杯卡,可以慢慢喝 ☕</div>
       </div>
-      
       <div className="grid grid-cols-2 gap-3">
         <button onClick={onBack} className="bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-2xl py-3 font-medium transition">取消</button>
         <button onClick={onConfirm} className="bg-amber-700 hover:bg-amber-800 text-white rounded-2xl py-3 font-medium transition">確認領取</button>
@@ -560,65 +437,32 @@ function CustomerClaim({ claimData, onBack, onConfirm }) {
   )
 }
 
-// ============ 歷史紀錄 ============
 function CustomerHistory({ history, onBack }) {
-  // 統計
   const totalOrders = history.filter(h => h.type === 'order').length
   const totalGrants = history.filter(h => h.type === 'grant').length
-  const totalUsed = history
-    .filter(h => h.type === 'order')
-    .reduce((sum, h) => sum + h.items.reduce((s, i) => s + i.qty, 0), 0)
-  const totalReceived = history
-    .filter(h => h.type === 'grant')
-    .reduce((sum, h) => sum + h.qty, 0)
-  
+  const totalUsed = history.filter(h => h.type === 'order').reduce((sum, h) => sum + h.items.reduce((s, i) => s + i.qty, 0), 0)
+  const totalReceived = history.filter(h => h.type === 'grant').reduce((sum, h) => sum + h.qty, 0)
   return (
     <div className="bg-amber-50 rounded-3xl p-6 shadow-xl">
-      <button onClick={onBack} className="flex items-center gap-1 text-amber-700 mb-4 hover:text-amber-900 transition">
-        <ChevronLeft className="w-4 h-4" />返回
-      </button>
-      
+      <button onClick={onBack} className="flex items-center gap-1 text-amber-700 mb-4 hover:text-amber-900 transition"><ChevronLeft className="w-4 h-4" />返回</button>
       <h2 className="text-amber-900 font-bold text-xl mb-1">歷史紀錄</h2>
       <p className="text-amber-700/70 text-sm mb-6">您的寄杯活動</p>
-      
-      {/* 統計卡片 */}
       <div className="grid grid-cols-2 gap-3 mb-6">
         <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-100 rounded-2xl p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <TrendingUp className="w-4 h-4 text-green-700" />
-            <span className="text-green-800 text-xs font-medium">收到</span>
-          </div>
-          <div className="flex items-baseline gap-1">
-            <span className="text-green-900 font-bold text-2xl">{totalReceived}</span>
-            <span className="text-green-700 text-xs">杯</span>
-          </div>
+          <div className="flex items-center gap-2 mb-1"><TrendingUp className="w-4 h-4 text-green-700" /><span className="text-green-800 text-xs font-medium">收到</span></div>
+          <div className="flex items-baseline gap-1"><span className="text-green-900 font-bold text-2xl">{totalReceived}</span><span className="text-green-700 text-xs">杯</span></div>
           <div className="text-green-700/70 text-xs mt-0.5">{totalGrants} 次發放</div>
         </div>
-        
         <div className="bg-gradient-to-br from-rose-50 to-pink-50 border border-rose-100 rounded-2xl p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <TrendingDown className="w-4 h-4 text-rose-700" />
-            <span className="text-rose-800 text-xs font-medium">已用</span>
-          </div>
-          <div className="flex items-baseline gap-1">
-            <span className="text-rose-900 font-bold text-2xl">{totalUsed}</span>
-            <span className="text-rose-700 text-xs">杯</span>
-          </div>
+          <div className="flex items-center gap-2 mb-1"><TrendingDown className="w-4 h-4 text-rose-700" /><span className="text-rose-800 text-xs font-medium">已用</span></div>
+          <div className="flex items-baseline gap-1"><span className="text-rose-900 font-bold text-2xl">{totalUsed}</span><span className="text-rose-700 text-xs">杯</span></div>
           <div className="text-rose-700/70 text-xs mt-0.5">{totalOrders} 筆訂單</div>
         </div>
       </div>
-      
-      {/* 時間軸 */}
       {history.length === 0 ? (
-        <div className="bg-amber-100 rounded-2xl p-8 text-center text-amber-700/70 text-sm">
-          目前沒有紀錄
-        </div>
+        <div className="bg-amber-100 rounded-2xl p-8 text-center text-amber-700/70 text-sm">目前沒有紀錄</div>
       ) : (
-        <div className="space-y-3">
-          {history.map((entry, i) => (
-            <HistoryEntry key={i} entry={entry} />
-          ))}
-        </div>
+        <div className="space-y-3">{history.map((entry, i) => <HistoryEntry key={i} entry={entry} />)}</div>
       )}
     </div>
   )
@@ -626,17 +470,13 @@ function CustomerHistory({ history, onBack }) {
 
 function HistoryEntry({ entry }) {
   if (entry.type === 'grant') {
-    // 收到寄杯
     const isInterchangeable = entry.interchangeable
     const isHot = entry.temp === 'hot'
-    
     return (
       <div className="bg-white rounded-2xl p-4 border-l-4 border-green-400">
         <div className="flex items-start justify-between mb-2">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-              <Gift className="w-4 h-4 text-green-700" />
-            </div>
+            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0"><Gift className="w-4 h-4 text-green-700" /></div>
             <div>
               <div className="text-amber-900 font-medium text-sm">收到寄杯</div>
               <div className="text-amber-700/60 text-xs">由 {entry.grantedBy} 發放</div>
@@ -644,14 +484,11 @@ function HistoryEntry({ entry }) {
           </div>
           <div className="text-amber-700/60 text-xs">{formatTimeAgo(entry.timestamp)}</div>
         </div>
-        
         <div className="flex items-center justify-between pl-10">
           <div className="flex items-center gap-2">
             <span className="text-amber-900 font-medium text-sm">{entry.name}</span>
             {isInterchangeable ? (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px]">
-                <ArrowLeftRight className="w-2 h-2" />冰熱可選
-              </span>
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px]"><ArrowLeftRight className="w-2 h-2" />冰熱可選</span>
             ) : isHot ? (
               <span className="px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 text-[10px]">熱</span>
             ) : null}
@@ -661,17 +498,12 @@ function HistoryEntry({ entry }) {
       </div>
     )
   }
-  
-  // 訂單
   const totalQty = entry.items.reduce((sum, i) => sum + i.qty, 0)
-  
   return (
     <div className="bg-white rounded-2xl p-4 border-l-4 border-rose-400">
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center flex-shrink-0">
-            <ShoppingBag className="w-4 h-4 text-rose-700" />
-          </div>
+          <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center flex-shrink-0"><ShoppingBag className="w-4 h-4 text-rose-700" /></div>
           <div>
             <div className="text-amber-900 font-medium text-sm">使用寄杯</div>
             <div className="text-amber-700/60 text-xs">訂單 #{entry.orderNumber}</div>
@@ -679,7 +511,6 @@ function HistoryEntry({ entry }) {
         </div>
         <div className="text-amber-700/60 text-xs">{formatTimeAgo(entry.timestamp)}</div>
       </div>
-      
       <div className="pl-10 space-y-1">
         {entry.items.map((item, i) => (
           <div key={i} className="flex items-center justify-between">
@@ -696,17 +527,297 @@ function HistoryEntry({ entry }) {
   )
 }
 
+// ============ 門市端 ============
 function StoreView() {
+  const [account, setAccount] = useState(null) // 登入後的帳號
+  const [tab, setTab] = useState('orders') // orders | grant | reports | settings
+  
+  if (!account) {
+    return <StoreLogin onLogin={setAccount} />
+  }
+  
+  const isOwner = account.role === 'owner'
+  const displayName = isOwner ? '老闆 · 彥' : '門市端'
+  
   return (
-    <div className="bg-amber-50 text-amber-900 rounded-3xl p-8 shadow-2xl">
-      <h2 className="text-2xl font-bold mb-2">門市端</h2>
-      <p className="text-amber-700/70 text-sm mb-6">店員操作畫面(待搬移)</p>
-      <div className="space-y-3">
-        <div className="bg-amber-100 rounded-xl p-4">
-          <div className="text-xs text-amber-700 uppercase tracking-wider mb-1">即將上線</div>
-          <div className="font-medium">接單 · 銷帳 · 發杯 · 報表</div>
+    <div className="bg-amber-50 rounded-3xl shadow-2xl overflow-hidden">
+      {/* 頂部 staff bar */}
+      <div className="bg-amber-900 px-5 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-full bg-amber-700 flex items-center justify-center">
+            {isOwner ? <Award className="w-4 h-4 text-amber-100" /> : <User className="w-4 h-4 text-amber-100" />}
+          </div>
+          <div>
+            <div className="text-amber-50 text-sm font-medium">{displayName}</div>
+            <div className="text-amber-200/60 text-xs">{isOwner ? '老闆權限' : '門市權限'}</div>
+          </div>
+        </div>
+        <button onClick={() => setAccount(null)} className="px-3 py-1.5 rounded-lg bg-amber-800 hover:bg-amber-700 text-amber-100 text-xs flex items-center gap-1 transition">
+          <LogOut className="w-3.5 h-3.5" />登出
+        </button>
+      </div>
+      
+      {/* 分頁切換 */}
+      <div className="bg-amber-100 px-2 flex gap-1 overflow-x-auto">
+        {[
+          { id: 'orders', label: '接單', icon: Bell },
+          { id: 'grant', label: '發杯', icon: Gift },
+          { id: 'reports', label: '報表', icon: FileText },
+          { id: 'settings', label: '設定', icon: Settings },
+        ].map(t => {
+          const Icon = t.icon
+          const active = tab === t.id
+          return (
+            <button key={t.id} onClick={() => setTab(t.id)} className={`px-4 py-3 flex items-center gap-1.5 text-sm font-medium border-b-2 transition ${active ? 'border-amber-700 text-amber-900' : 'border-transparent text-amber-700/60 hover:text-amber-900'}`}>
+              <Icon className="w-4 h-4" />{t.label}
+            </button>
+          )
+        })}
+      </div>
+      
+      {/* 內容區 */}
+      <div className="p-5">
+        {tab === 'orders' && <StoreOrders />}
+        {tab === 'grant' && <StorePlaceholder title="發杯" desc="產生 QR 給客人領取寄杯" />}
+        {tab === 'reports' && <StorePlaceholder title="報表" desc="銷售統計、寄杯狀況、客戶分析" />}
+        {tab === 'settings' && <StorePlaceholder title="設定" desc="品項、帳號、經手人、語音、LINE 通知" />}
+      </div>
+    </div>
+  )
+}
+
+function StoreLogin({ onLogin }) {
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [showDemo, setShowDemo] = useState(false)
+  
+  function tryLogin() {
+    const u = username.trim()
+    const p = password.trim()
+    if (!u || !p) { setError('請輸入帳號和密碼'); return }
+    const match = INITIAL_ACCOUNTS.find(a => a.username === u && a.password === p)
+    if (match) { setError(''); onLogin(match) }
+    else setError('帳號或密碼錯誤')
+  }
+  
+  function fillDemo(account) {
+    setUsername(account.username)
+    setPassword(account.password)
+    setError('')
+  }
+  
+  return (
+    <div className="bg-gradient-to-br from-amber-900 to-[#1a0f08] rounded-3xl p-8 shadow-2xl">
+      <div className="text-center mb-8">
+        <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-amber-700 to-amber-900 flex items-center justify-center shadow-lg">
+          <Coffee className="w-10 h-10 text-amber-100" />
+        </div>
+        <p className="text-amber-200/60 text-xs uppercase tracking-widest italic mb-1">Staff Access</p>
+        <h2 className="text-amber-50 text-2xl font-bold mb-1">福龍門市</h2>
+        <p className="text-amber-200/70 text-sm">寄杯系統 · 門市端</p>
+      </div>
+      
+      <div className="space-y-3 mb-3">
+        <div>
+          <label className="block text-xs text-amber-200/70 mb-1.5">帳號</label>
+          <input type="text" value={username}
+            onChange={(e) => { setUsername(e.target.value); setError('') }}
+            onKeyDown={(e) => e.key === 'Enter' && tryLogin()}
+            placeholder="請輸入帳號"
+            className="w-full px-4 py-3 rounded-xl bg-black/30 text-amber-50 placeholder:text-amber-200/30 outline-none border border-amber-800/50 focus:border-amber-600 transition"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-amber-200/70 mb-1.5">密碼</label>
+          <input type="password" value={password}
+            onChange={(e) => { setPassword(e.target.value); setError('') }}
+            onKeyDown={(e) => e.key === 'Enter' && tryLogin()}
+            placeholder="請輸入密碼"
+            className="w-full px-4 py-3 rounded-xl bg-black/30 text-amber-50 placeholder:text-amber-200/30 outline-none border border-amber-800/50 focus:border-amber-600 transition"
+          />
         </div>
       </div>
+      
+      {error && (
+        <div className="bg-red-900/30 border border-red-800/50 rounded-lg px-3 py-2 mb-3 text-red-200 text-xs flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />{error}
+        </div>
+      )}
+      
+      <button onClick={tryLogin} className="w-full py-3.5 rounded-xl font-bold text-amber-950 bg-gradient-to-br from-amber-100 to-amber-200 hover:from-amber-50 hover:to-amber-100 transition active:scale-95">
+        登入
+      </button>
+      
+      <div className="text-center mt-4">
+        <button onClick={() => setShowDemo(!showDemo)} className="text-amber-200/40 text-xs underline">
+          {showDemo ? '隱藏示範帳號' : '顯示示範帳號'}
+        </button>
+      </div>
+      
+      {showDemo && (
+        <div className="mt-3 space-y-2">
+          {INITIAL_ACCOUNTS.map(acc => (
+            <button key={acc.id} onClick={() => fillDemo(acc)} className="w-full px-3 py-2 rounded-lg bg-black/30 hover:bg-black/40 border border-amber-800/30 text-left transition">
+              <div className="font-bold text-amber-200/80 text-xs">{acc.label}</div>
+              <div className="text-amber-200/50 text-[10px] font-mono">{acc.username} / {acc.password}</div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StoreOrders() {
+  const [orders, setOrders] = useState(INITIAL_ORDERS)
+  const [showHandlerPicker, setShowHandlerPicker] = useState(null) // 點接單時跳出選經手人
+  
+  function acceptOrder(orderId, handlerName) {
+    setOrders(orders.map(o => o.id === orderId ? { ...o, status: 'preparing', handlerName } : o))
+    setShowHandlerPicker(null)
+  }
+  
+  function markReady(orderId) {
+    setOrders(orders.map(o => o.id === orderId ? { ...o, status: 'ready' } : o))
+  }
+  
+  function completeOrder(orderId) {
+    setOrders(orders.filter(o => o.id !== orderId))
+  }
+  
+  if (orders.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <div className="w-16 h-16 mx-auto rounded-full bg-amber-100 flex items-center justify-center mb-4">
+          <CheckCircle2 className="w-8 h-8 text-amber-700" />
+        </div>
+        <p className="text-amber-900 font-medium mb-1">沒有待處理訂單</p>
+        <p className="text-amber-700/60 text-sm">所有訂單已完成 ☕</p>
+      </div>
+    )
+  }
+  
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-amber-900 font-bold">待處理訂單</h2>
+        <span className="text-amber-700 text-sm">{orders.length} 筆</span>
+      </div>
+      
+      {orders.map(order => (
+        <OrderCard 
+          key={order.id} 
+          order={order}
+          onAccept={() => setShowHandlerPicker(order.id)}
+          onMarkReady={() => markReady(order.id)}
+          onComplete={() => completeOrder(order.id)}
+        />
+      ))}
+      
+      {showHandlerPicker && (
+        <HandlerPickerModal 
+          orderId={showHandlerPicker}
+          onConfirm={(handlerName) => acceptOrder(showHandlerPicker, handlerName)}
+          onCancel={() => setShowHandlerPicker(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+function OrderCard({ order, onAccept, onMarkReady, onComplete }) {
+  const statusConfig = {
+    pending: { label: '待處理', color: 'bg-red-100 text-red-700 border-red-200' },
+    preparing: { label: '製作中', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
+    ready: { label: '待取', color: 'bg-green-100 text-green-700 border-green-200' },
+  }
+  const config = statusConfig[order.status]
+  
+  return (
+    <div className={`bg-white rounded-2xl p-4 border-2 ${config.color.split(' ').slice(-1)[0]}`}>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="text-amber-900 font-bold text-lg">#{order.id}</span>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
+              {config.label}
+            </span>
+          </div>
+          <div className="text-amber-700/70 text-xs">
+            {order.customerName} · {order.minutesAgo} 分鐘前
+            {order.handlerName && <> · 經手:{order.handlerName}</>}
+          </div>
+        </div>
+      </div>
+      
+      <div className="space-y-1 mb-3 pl-1">
+        {order.items.map((item, i) => (
+          <div key={i} className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-2">
+              <span className={`px-2 py-0.5 rounded-full text-xs ${TEMP_STYLE[item.temp]}`}>{TEMP_LABEL[item.temp]}</span>
+              <span className="text-amber-900">{item.name}</span>
+            </div>
+            <span className="text-amber-700">× {item.qty}</span>
+          </div>
+        ))}
+      </div>
+      
+      <div className="flex gap-2">
+        {order.status === 'pending' && (
+          <button onClick={onAccept} className="flex-1 bg-amber-700 hover:bg-amber-800 text-white rounded-xl py-2.5 font-medium text-sm transition">
+            接單
+          </button>
+        )}
+        {order.status === 'preparing' && (
+          <button onClick={onMarkReady} className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-xl py-2.5 font-medium text-sm transition">
+            製作完成 · 通知客人
+          </button>
+        )}
+        {order.status === 'ready' && (
+          <button onClick={onComplete} className="flex-1 bg-amber-700 hover:bg-amber-800 text-white rounded-xl py-2.5 font-medium text-sm transition">
+            銷帳完成
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function HandlerPickerModal({ onConfirm, onCancel }) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-6" onClick={onCancel}>
+      <div className="bg-white rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-amber-900 font-bold text-lg mb-1">選擇經手人</h3>
+        <p className="text-amber-700/60 text-sm mb-4">這筆訂單由誰處理?</p>
+        <div className="space-y-2 mb-3">
+          {INITIAL_HANDLERS.map(h => (
+            <button key={h.id} onClick={() => onConfirm(h.isOwner ? `老闆 · ${h.name}` : h.name)} className="w-full px-4 py-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-left transition flex items-center gap-3">
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center ${h.isOwner ? 'bg-amber-200' : 'bg-amber-100'}`}>
+                {h.isOwner ? <Award className="w-4 h-4 text-amber-800" /> : <User className="w-4 h-4 text-amber-700" />}
+              </div>
+              <div>
+                <div className="text-amber-900 font-medium text-sm">{h.isOwner ? `老闆 · ${h.name}` : h.name}</div>
+                {h.isOwner && <div className="text-amber-700/60 text-xs">老闆本人</div>}
+              </div>
+            </button>
+          ))}
+        </div>
+        <button onClick={onCancel} className="w-full py-2 text-amber-700 hover:text-amber-900 text-sm">取消</button>
+      </div>
+    </div>
+  )
+}
+
+function StorePlaceholder({ title, desc }) {
+  return (
+    <div className="text-center py-12">
+      <div className="w-16 h-16 mx-auto rounded-full bg-amber-100 flex items-center justify-center mb-4">
+        <Sparkles className="w-8 h-8 text-amber-700" />
+      </div>
+      <p className="text-amber-900 font-medium mb-1">{title}</p>
+      <p className="text-amber-700/60 text-sm">{desc}</p>
+      <p className="text-amber-700/40 text-xs mt-3 italic">即將上線</p>
     </div>
   )
 }
