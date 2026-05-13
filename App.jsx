@@ -243,24 +243,20 @@ function CustomerView({ liffProfile }) {
   if (page === 'scan') return <CustomerScan onBack={() => setPage('home')} onSuccess={handleScanSuccess} />
   if (page === 'claim' && claimData) return <CustomerClaim claimData={claimData} onBack={() => setPage('home')} onConfirm={handleConfirmClaim} />
   if (page === 'history') return <CustomerHistory history={history} onBack={() => setPage('home')} />
-  return <CustomerHome liffProfile={liffProfile} balance={balance} loading={loading} usingRealData={usingRealData} onUse={() => setPage('use')} onScan={() => setPage('scan')} onHistory={() => setPage('history')} pendingOrder={pendingOrder} onViewOrder={() => setPage('order')} />
+  return <CustomerHome liffProfile={liffProfile} balance={balance} usingRealData={!!customerData} customerData={customerData} onUse={() => setPage('use')} onScan={() => setPage('scan')} onHistory={() => setPage('history')} pendingOrder={pendingOrder} onViewOrder={() => setPage('order')} />
 }
 
-function CustomerHome({ liffProfile, balance, loading, usingRealData, onUse, onScan, onHistory, pendingOrder, onViewOrder }) {
+function CustomerHome({ liffProfile, balance, usingRealData, customerData, onUse, onScan, onHistory, pendingOrder, onViewOrder }) {
   const totalCups = balance.reduce((sum, item) => sum + item.count, 0)
   const visibleBalance = balance.filter(b => b.count > 0)
-  const displayName = liffProfile?.displayName || '小華'
-  const isDemoMode = !liffProfile
+  // 優先用後端的真實名字(customers.display_name),其次 LIFF profile,最後 demo
+  const displayName = customerData?.display_name || liffProfile?.displayName || '小華'
+  const isDemoMode = !liffProfile && !customerData
   return (
     <div className="space-y-4">
-      {loading && (
-        <div className="bg-amber-700/30 text-amber-100 text-sm px-4 py-2 rounded-xl text-center">
-          載入您的寄杯資料中…
-        </div>
-      )}
-      {usingRealData && !loading && (
+      {usingRealData && (
         <div className="bg-green-700/30 text-green-100 text-xs px-4 py-1.5 rounded-full text-center">
-          ✓ 顯示真實資料(從 Supabase)
+          ✓ 真實資料(已接 Supabase)
         </div>
       )}
       {pendingOrder && (
