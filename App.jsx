@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { Coffee, Smartphone, Tablet, ArrowLeftRight, Flame, ChevronRight, ShoppingBag, ScanLine } from 'lucide-react'
+import React, { useState, useRef } from 'react'
+import { Coffee, ArrowLeftRight, Flame, ChevronRight, ShoppingBag, ScanLine } from 'lucide-react'
 
 // ============ 模擬資料 ============
 const INITIAL_BALANCE = [
@@ -11,12 +11,51 @@ const INITIAL_BALANCE = [
 const CUP_LIMIT = 60
 
 export default function App() {
+  // 預設只看到客人端;門市端要透過「Logo 連點 3 下」才會解鎖
   const [view, setView] = useState('customer')
+  const [storeUnlocked, setStoreUnlocked] = useState(false)
+  
+  // 連點計數:1.5 秒內點 3 下就解鎖
+  const clickCountRef = useRef(0)
+  const clickTimerRef = useRef(null)
+  
+  function handleLogoClick() {
+    clickCountRef.current += 1
+    
+    // 重置計時器
+    if (clickTimerRef.current) clearTimeout(clickTimerRef.current)
+    clickTimerRef.current = setTimeout(() => {
+      clickCountRef.current = 0
+    }, 1500)
+    
+    if (clickCountRef.current >= 3) {
+      clickCountRef.current = 0
+      if (clickTimerRef.current) clearTimeout(clickTimerRef.current)
+      
+      if (storeUnlocked) {
+        // 已解鎖 → 切到門市端
+        setView('store')
+      } else {
+        // 第一次解鎖 → 解鎖 + 切到門市端
+        setStoreUnlocked(true)
+        setView('store')
+      }
+    }
+  }
+  
+  function handleBackToCustomer() {
+    setView('customer')
+  }
   
   return (
     <div className="min-h-screen bg-[#2A1810] text-amber-50">
       <header className="max-w-5xl mx-auto px-6 py-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        {/* Logo 區塊:連點 3 下解鎖門市端 */}
+        <div 
+          className="flex items-center gap-3 cursor-pointer select-none"
+          onClick={handleLogoClick}
+          title="" 
+        >
           <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-700 to-amber-900 flex items-center justify-center">
             <Coffee className="w-6 h-6 text-amber-100" />
           </div>
@@ -25,14 +64,16 @@ export default function App() {
             <p className="text-amber-200/60 text-xs italic">Coffee Cup System · Prototype</p>
           </div>
         </div>
-        <div className="flex gap-2 bg-black/30 p-1 rounded-full">
-          <button onClick={() => setView('customer')} className={`px-4 py-2 rounded-full text-sm flex items-center gap-2 transition ${view === 'customer' ? 'bg-amber-50 text-amber-900 font-medium' : 'text-amber-200/70 hover:text-amber-100'}`}>
-            <Smartphone className="w-4 h-4" />客人端
+        
+        {/* 只在門市端模式顯示「返回」 */}
+        {view === 'store' && (
+          <button 
+            onClick={handleBackToCustomer}
+            className="px-4 py-2 rounded-full bg-black/30 text-amber-200/70 hover:text-amber-100 text-sm transition"
+          >
+            ← 返回客人端
           </button>
-          <button onClick={() => setView('store')} className={`px-4 py-2 rounded-full text-sm flex items-center gap-2 transition ${view === 'store' ? 'bg-amber-50 text-amber-900 font-medium' : 'text-amber-200/70 hover:text-amber-100'}`}>
-            <Tablet className="w-4 h-4" />門市端
-          </button>
-        </div>
+        )}
       </header>
       
       <main className="max-w-md mx-auto px-6 py-4">
@@ -40,7 +81,7 @@ export default function App() {
       </main>
       
       <footer className="text-center py-8 text-amber-200/30 text-xs italic">
-        Prototype · 福龍門市寄杯系統 · v0.3
+        Prototype · 福龍門市寄杯系統 · v0.4
       </footer>
     </div>
   )
@@ -51,7 +92,6 @@ function CustomerView() {
   
   return (
     <div className="space-y-4">
-      {/* 主餘額卡片 */}
       <div className="bg-gradient-to-br from-amber-800 to-amber-950 rounded-3xl p-7 shadow-2xl">
         <p className="text-amber-200/70 text-xs uppercase tracking-widest italic mb-2">
           Your Coffee Wallet
@@ -79,7 +119,6 @@ function CustomerView() {
         </div>
       </div>
       
-      {/* 寄杯卡清單區 */}
       <div className="bg-amber-50 rounded-3xl p-6 shadow-xl">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-amber-900 font-bold text-base">我的寄杯卡</h3>
@@ -102,13 +141,10 @@ function CustomerView() {
 function CupCard({ item }) {
   const isInterchangeable = item.interchangeable
   const isHot = item.temp === 'hot'
-  
-  // 進度條:當前杯數佔上限 60 杯的比例(視覺上每張卡用 10 杯做滿條基準會比較易讀)
   const progressPercent = Math.min((item.count / 10) * 100, 100)
   
   return (
     <div className="bg-white rounded-2xl p-4 flex items-center gap-3">
-      {/* 左邊圖示 */}
       <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${
         isInterchangeable 
           ? 'bg-gradient-to-br from-indigo-100 to-purple-100' 
@@ -121,7 +157,6 @@ function CupCard({ item }) {
         )}
       </div>
       
-      {/* 中間資訊 */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <span className="text-amber-900 font-bold">{item.name}</span>
@@ -137,7 +172,6 @@ function CupCard({ item }) {
           ) : null}
         </div>
         
-        {/* 進度條 */}
         <div className="w-full bg-amber-100 rounded-full h-1.5 overflow-hidden">
           <div 
             className={`h-full rounded-full ${
@@ -150,7 +184,6 @@ function CupCard({ item }) {
         </div>
       </div>
       
-      {/* 右邊數量 */}
       <div className="flex items-baseline gap-0.5 flex-shrink-0">
         <span className="text-amber-900 font-bold text-2xl">{item.count}</span>
         <span className="text-amber-700 text-xs">杯</span>
