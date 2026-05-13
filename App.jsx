@@ -3,7 +3,8 @@ import {
   Coffee, ArrowLeftRight, Flame, ChevronRight, ChevronLeft,
   ShoppingBag, ScanLine, Plus, Minus, Clock, CheckCircle2,
   Gift, Sparkles, FileText, Calendar, TrendingDown, TrendingUp,
-  LogOut, User, Award, Settings, Bell, AlertCircle, UserPlus
+  LogOut, User, Award, Settings, Bell, AlertCircle, UserPlus,
+  QrCode
 } from 'lucide-react'
 
 // ============ 共用資料 ============
@@ -45,6 +46,14 @@ const INITIAL_HANDLERS = [
   { id: 'h_owner', name: '彥', isOwner: true },
   { id: 'h1', name: '小芬' },
   { id: 'h2', name: '阿宏' },
+]
+
+const INITIAL_ITEMS_FULL = [
+  { id: 'americano', name: '美式咖啡', temps: ['hot', 'cold'], interchangeable: true },
+  { id: 'latte', name: '拿鐵', temps: ['hot', 'cold'], interchangeable: true },
+  { id: 'cappuccino', name: '卡布奇諾', temps: ['hot'], interchangeable: false },
+  { id: 'mocha', name: '摩卡', temps: ['hot'], interchangeable: false },
+  { id: 'caramel', name: '焦糖瑪奇朵', temps: ['hot', 'cold'], interchangeable: true },
 ]
 
 const INITIAL_ORDERS = [
@@ -123,7 +132,7 @@ export default function App() {
       </main>
       
       <footer className="text-center py-8 text-amber-200/30 text-xs italic">
-        Prototype · 福龍門市寄杯系統 · v0.9
+        Prototype · 福龍門市寄杯系統 · v1.0
       </footer>
     </div>
   )
@@ -593,7 +602,7 @@ function StoreView() {
       {/* 內容區 */}
       <div className="p-5">
         {tab === 'orders' && <StoreOrders />}
-        {tab === 'grant' && <StorePlaceholder title="發杯" desc="產生 QR 給客人領取寄杯" />}
+        {tab === 'grant' && <StoreGrant />}
         {tab === 'reports' && <StorePlaceholder title="報表" desc="銷售統計、寄杯狀況、客戶分析" />}
         {tab === 'settings' && <StorePlaceholder title="設定" desc="品項、帳號、經手人、語音、LINE 通知" />}
       </div>
@@ -785,6 +794,268 @@ function OrderCard({ order, onAccept, onMarkReady, onComplete }) {
         )}
       </div>
     </div>
+  )
+}
+
+// ============ 門市端 - 發杯 ============
+function StoreGrant() {
+  // 第一階段:選品項
+  // 第二階段:顯示 QR
+  const [step, setStep] = useState('pick') // pick | qr
+  const [selectedItem, setSelectedItem] = useState(null)
+  const [selectedTemp, setSelectedTemp] = useState(null)
+  const [qty, setQty] = useState(1)
+  const [generatedQR, setGeneratedQR] = useState(null)
+  
+  function pickItem(item) {
+    setSelectedItem(item)
+    // 預設選第一個溫度
+    setSelectedTemp(item.interchangeable ? null : item.temps[0])
+  }
+  
+  function generateQR() {
+    if (!selectedItem) return
+    const data = {
+      itemId: selectedItem.id,
+      name: selectedItem.name,
+      qty,
+      interchangeable: selectedItem.interchangeable,
+      allowedTemps: selectedItem.interchangeable ? selectedItem.temps : null,
+      temp: selectedItem.interchangeable ? null : selectedTemp,
+      grantedBy: '老闆 · 彥', // TODO:之後改成登入帳號
+      timestamp: Date.now(),
+      // 唯一識別碼,將來後端用來驗證 QR 只能掃一次
+      qrId: `Q${Date.now()}${Math.floor(Math.random() * 1000)}`,
+    }
+    setGeneratedQR(data)
+    setStep('qr')
+  }
+  
+  function reset() {
+    setStep('pick')
+    setSelectedItem(null)
+    setSelectedTemp(null)
+    setQty(1)
+    setGeneratedQR(null)
+  }
+  
+  if (step === 'qr' && generatedQR) {
+    return <GrantQRDisplay data={generatedQR} onReset={reset} />
+  }
+  
+  return (
+    <div className="space-y-4">
+      <div className="mb-2">
+        <h2 className="text-amber-900 font-bold mb-1">發杯</h2>
+        <p className="text-amber-700/60 text-sm">選擇品項與杯數,產生 QR 給客人掃描</p>
+      </div>
+      
+      {/* 品項選擇 */}
+      <div>
+        <div className="text-xs text-amber-700/70 uppercase tracking-wider mb-2 font-medium">品項</div>
+        <div className="grid grid-cols-2 gap-2">
+          {INITIAL_ITEMS_FULL.map(item => {
+            const isSelected = selectedItem?.id === item.id
+            return (
+              <button 
+                key={item.id} 
+                onClick={() => pickItem(item)} 
+                className={`p-3 rounded-2xl text-left transition border-2 ${
+                  isSelected 
+                    ? 'bg-amber-700 text-white border-amber-700' 
+                    : 'bg-white text-amber-900 border-transparent hover:border-amber-300'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                    isSelected 
+                      ? 'bg-white/20' 
+                      : item.interchangeable ? 'bg-indigo-100' : 'bg-orange-100'
+                  }`}>
+                    {item.interchangeable ? (
+                      <ArrowLeftRight className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-indigo-600'}`} />
+                    ) : (
+                      <Flame className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-orange-600'}`} />
+                    )}
+                  </div>
+                  <span className="font-medium text-sm">{item.name}</span>
+                </div>
+                <div className={`text-[10px] ${isSelected ? 'text-white/70' : 'text-amber-700/60'}`}>
+                  {item.interchangeable ? '冰熱可選' : item.temps.map(t => TEMP_LABEL[t]).join(' / ')}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      
+      {/* 溫度選擇(只在非冰熱可選時顯示)*/}
+      {selectedItem && !selectedItem.interchangeable && selectedItem.temps.length > 1 && (
+        <div>
+          <div className="text-xs text-amber-700/70 uppercase tracking-wider mb-2 font-medium">溫度</div>
+          <div className="flex gap-2">
+            {selectedItem.temps.map(t => {
+              const isSelected = selectedTemp === t
+              return (
+                <button 
+                  key={t} 
+                  onClick={() => setSelectedTemp(t)}
+                  className={`flex-1 py-2 rounded-xl font-medium text-sm transition ${
+                    isSelected 
+                      ? (t === 'hot' ? 'bg-orange-500 text-white' : 'bg-blue-500 text-white')
+                      : `${TEMP_STYLE[t]} hover:opacity-80`
+                  }`}
+                >
+                  {TEMP_LABEL[t]}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+      
+      {/* 杯數選擇 */}
+      {selectedItem && (
+        <div>
+          <div className="text-xs text-amber-700/70 uppercase tracking-wider mb-2 font-medium">杯數</div>
+          <div className="bg-white rounded-2xl p-4 flex items-center justify-between">
+            <button 
+              onClick={() => qty > 1 && setQty(qty - 1)} 
+              disabled={qty <= 1}
+              className="w-12 h-12 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-900 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition"
+            >
+              <Minus className="w-5 h-5" />
+            </button>
+            <div className="flex items-baseline gap-1">
+              <span className="text-amber-900 font-bold text-4xl">{qty}</span>
+              <span className="text-amber-700 text-lg">杯</span>
+            </div>
+            <button 
+              onClick={() => qty < 99 && setQty(qty + 1)} 
+              disabled={qty >= 99}
+              className="w-12 h-12 rounded-full bg-amber-700 hover:bg-amber-800 text-white flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed transition"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* 產生 QR 按鈕 */}
+      <button 
+        onClick={generateQR} 
+        disabled={!selectedItem}
+        className="w-full bg-amber-700 hover:bg-amber-800 disabled:bg-amber-300 disabled:cursor-not-allowed text-white rounded-2xl py-4 font-bold transition flex items-center justify-center gap-2"
+      >
+        <QrCode className="w-5 h-5" />
+        產生 QR 碼
+      </button>
+    </div>
+  )
+}
+
+// ============ QR 顯示頁(發完後) ============
+function GrantQRDisplay({ data, onReset }) {
+  const isInterchangeable = data.interchangeable
+  const isHot = data.temp === 'hot'
+  
+  return (
+    <div className="text-center">
+      <button onClick={onReset} className="flex items-center gap-1 text-amber-700 mb-4 hover:text-amber-900 transition mr-auto">
+        <ChevronLeft className="w-4 h-4" />重新選擇
+      </button>
+      
+      <h2 className="text-amber-900 font-bold text-xl mb-1">請客人掃描</h2>
+      <p className="text-amber-700/70 text-sm mb-6">客人用 LINE 內的「掃 QR 領取」</p>
+      
+      {/* 假 QR Code(用 SVG 畫格子)*/}
+      <div className="bg-white rounded-3xl p-6 mx-auto inline-block shadow-lg mb-6">
+        <FakeQRCode data={data.qrId} />
+      </div>
+      
+      {/* 內容預覽 */}
+      <div className="bg-amber-100 rounded-2xl p-4 mb-4">
+        <div className="text-xs text-amber-700/70 uppercase tracking-wider mb-2">QR 內容</div>
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <span className="text-amber-900 font-bold text-lg">{data.name}</span>
+          {isInterchangeable ? (
+            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-medium">
+              <ArrowLeftRight className="w-2.5 h-2.5" />冰熱可選
+            </span>
+          ) : (
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${TEMP_STYLE[data.temp]}`}>
+              {TEMP_LABEL[data.temp]}
+            </span>
+          )}
+        </div>
+        <div className="flex items-baseline justify-center gap-1">
+          <span className="text-amber-700 text-sm">數量</span>
+          <span className="text-amber-900 font-bold text-3xl">{data.qty}</span>
+          <span className="text-amber-700">杯</span>
+        </div>
+      </div>
+      
+      <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-left">
+        <div className="flex items-start gap-2">
+          <Sparkles className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+          <div className="text-blue-900 text-xs">
+            <div className="font-medium mb-1">展示模式</div>
+            <div className="opacity-80">客人端掃描 QR 碼會自動顯示「收到一份寄杯」確認頁。實際上線後 QR 內容會與後端綁定,確保只能掃一次。</div>
+          </div>
+        </div>
+      </div>
+      
+      <button onClick={onReset} className="w-full mt-6 bg-amber-700 hover:bg-amber-800 text-white rounded-2xl py-3 font-medium transition">
+        完成,發下一張
+      </button>
+    </div>
+  )
+}
+
+// 假 QR Code:用 hash 演算法把字串轉成 21x21 點陣圖
+function FakeQRCode({ data }) {
+  const size = 21
+  // 用 data 字串產生「看起來像 QR」的點陣(實際不是真 QR)
+  const grid = []
+  let seed = 0
+  for (let i = 0; i < data.length; i++) seed = (seed * 31 + data.charCodeAt(i)) >>> 0
+  
+  for (let y = 0; y < size; y++) {
+    const row = []
+    for (let x = 0; x < size; x++) {
+      // 3 個定位點(左上、右上、左下角)
+      if (
+        (x < 7 && y < 7) || // 左上
+        (x >= size - 7 && y < 7) || // 右上
+        (x < 7 && y >= size - 7) // 左下
+      ) {
+        // 7x7 定位點:外框實心,中間 3x3 實心
+        const lx = x < 7 ? x : (x >= size - 7 ? x - (size - 7) : 0)
+        const ly = y < 7 ? y : (y >= size - 7 ? y - (size - 7) : 0)
+        const isEdge = lx === 0 || lx === 6 || ly === 0 || ly === 6
+        const isCenter = lx >= 2 && lx <= 4 && ly >= 2 && ly <= 4
+        row.push(isEdge || isCenter ? 1 : 0)
+      } else {
+        // 用 seed 偽隨機產生點
+        seed = (seed * 1103515245 + 12345) >>> 0
+        row.push((seed >> ((x + y) % 16)) & 1)
+      }
+    }
+    grid.push(row)
+  }
+  
+  const cellSize = 8
+  const totalSize = size * cellSize
+  
+  return (
+    <svg width={totalSize} height={totalSize} viewBox={`0 0 ${totalSize} ${totalSize}`} xmlns="http://www.w3.org/2000/svg">
+      <rect width={totalSize} height={totalSize} fill="white" />
+      {grid.map((row, y) => 
+        row.map((cell, x) => 
+          cell ? <rect key={`${x}-${y}`} x={x * cellSize} y={y * cellSize} width={cellSize} height={cellSize} fill="#2A1810" /> : null
+        )
+      )}
+    </svg>
   )
 }
 
