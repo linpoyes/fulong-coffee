@@ -53,14 +53,14 @@ const INITIAL_ORDERS = [
     items: [{ name: '卡布奇諾', temp: 'hot', qty: 3 }]
   },
   { 
-    id: 'A042', customerName: '李大華', minutesAgo: 5, status: 'preparing', handlerName: '小芬',
+    id: 'A042', customerName: '李大華', minutesAgo: 5, status: 'preparing',
     items: [
       { name: '美式咖啡', temp: 'cold', qty: 1 }, 
       { name: '摩卡', temp: 'hot', qty: 1 }
     ]
   },
   { 
-    id: 'A041', customerName: '王小明', minutesAgo: 12, status: 'ready', handlerName: '阿宏',
+    id: 'A041', customerName: '王小明', minutesAgo: 12, status: 'ready',
     items: [{ name: '拿鐵', temp: 'hot', qty: 2 }] 
   },
 ]
@@ -123,7 +123,7 @@ export default function App() {
       </main>
       
       <footer className="text-center py-8 text-amber-200/30 text-xs italic">
-        Prototype · 福龍門市寄杯系統 · v0.8
+        Prototype · 福龍門市寄杯系統 · v0.9
       </footer>
     </div>
   )
@@ -184,6 +184,7 @@ function CustomerView() {
 
 function CustomerHome({ balance, onUse, onScan, onHistory, pendingOrder, onViewOrder }) {
   const totalCups = balance.reduce((sum, item) => sum + item.count, 0)
+  const visibleBalance = balance.filter(b => b.count > 0)
   return (
     <div className="space-y-4">
       {pendingOrder && (
@@ -224,7 +225,15 @@ function CustomerHome({ balance, onUse, onScan, onHistory, pendingOrder, onViewO
             歷史紀錄<ChevronRight className="w-3 h-3" />
           </button>
         </div>
-        <div className="space-y-3">{balance.map(item => <CupCard key={item.itemId} item={item} />)}</div>
+        {visibleBalance.length === 0 ? (
+          <div className="text-center py-8">
+            <Coffee className="w-10 h-10 text-amber-300 mx-auto mb-2" />
+            <p className="text-amber-700/70 text-sm">目前沒有寄杯</p>
+            <p className="text-amber-600/50 text-xs mt-1">下次到福龍門市買咖啡時可以寄存</p>
+          </div>
+        ) : (
+          <div className="space-y-3">{visibleBalance.map(item => <CupCard key={item.itemId} item={item} />)}</div>
+        )}
       </div>
     </div>
   )
@@ -264,6 +273,7 @@ function CupCard({ item }) {
 
 function CustomerUse({ balance, onBack, onSubmit }) {
   const [selected, setSelected] = useState({})
+  const visibleBalance = balance.filter(b => b.count > 0)
   function getTotalSelectedForBalance(b) {
     if (b.interchangeable) return (b.allowedTemps || ['hot', 'cold']).reduce((sum, t) => sum + (selected[`${b.itemId}-${t}`] || 0), 0)
     return selected[`${b.itemId}-${b.temp}`] || 0
@@ -295,7 +305,12 @@ function CustomerUse({ balance, onBack, onSubmit }) {
       <h2 className="text-amber-900 font-bold text-xl mb-1">使用寄杯</h2>
       <p className="text-amber-700/70 text-sm mb-6">點 + 選擇想喝的</p>
       <div className="space-y-3 mb-6">
-        {balance.map(b => {
+        {visibleBalance.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-2xl">
+            <Coffee className="w-10 h-10 text-amber-300 mx-auto mb-2" />
+            <p className="text-amber-700/70 text-sm">目前沒有寄杯可使用</p>
+          </div>
+        ) : visibleBalance.map(b => {
           const temps = b.interchangeable ? (b.allowedTemps || ['hot', 'cold']) : [b.temp]
           const totalThis = getTotalSelectedForBalance(b)
           const remaining = b.count - totalThis
@@ -671,11 +686,9 @@ function StoreLogin({ onLogin }) {
 
 function StoreOrders() {
   const [orders, setOrders] = useState(INITIAL_ORDERS)
-  const [showHandlerPicker, setShowHandlerPicker] = useState(null) // 點接單時跳出選經手人
   
-  function acceptOrder(orderId, handlerName) {
-    setOrders(orders.map(o => o.id === orderId ? { ...o, status: 'preparing', handlerName } : o))
-    setShowHandlerPicker(null)
+  function acceptOrder(orderId) {
+    setOrders(orders.map(o => o.id === orderId ? { ...o, status: 'preparing' } : o))
   }
   
   function markReady(orderId) {
@@ -709,19 +722,11 @@ function StoreOrders() {
         <OrderCard 
           key={order.id} 
           order={order}
-          onAccept={() => setShowHandlerPicker(order.id)}
+          onAccept={() => acceptOrder(order.id)}
           onMarkReady={() => markReady(order.id)}
           onComplete={() => completeOrder(order.id)}
         />
       ))}
-      
-      {showHandlerPicker && (
-        <HandlerPickerModal 
-          orderId={showHandlerPicker}
-          onConfirm={(handlerName) => acceptOrder(showHandlerPicker, handlerName)}
-          onCancel={() => setShowHandlerPicker(null)}
-        />
-      )}
     </div>
   )
 }
@@ -746,7 +751,6 @@ function OrderCard({ order, onAccept, onMarkReady, onComplete }) {
           </div>
           <div className="text-amber-700/70 text-xs">
             {order.customerName} · {order.minutesAgo} 分鐘前
-            {order.handlerName && <> · 經手:{order.handlerName}</>}
           </div>
         </div>
       </div>
@@ -779,31 +783,6 @@ function OrderCard({ order, onAccept, onMarkReady, onComplete }) {
             銷帳完成
           </button>
         )}
-      </div>
-    </div>
-  )
-}
-
-function HandlerPickerModal({ onConfirm, onCancel }) {
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-6" onClick={onCancel}>
-      <div className="bg-white rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-amber-900 font-bold text-lg mb-1">選擇經手人</h3>
-        <p className="text-amber-700/60 text-sm mb-4">這筆訂單由誰處理?</p>
-        <div className="space-y-2 mb-3">
-          {INITIAL_HANDLERS.map(h => (
-            <button key={h.id} onClick={() => onConfirm(h.isOwner ? `老闆 · ${h.name}` : h.name)} className="w-full px-4 py-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-left transition flex items-center gap-3">
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center ${h.isOwner ? 'bg-amber-200' : 'bg-amber-100'}`}>
-                {h.isOwner ? <Award className="w-4 h-4 text-amber-800" /> : <User className="w-4 h-4 text-amber-700" />}
-              </div>
-              <div>
-                <div className="text-amber-900 font-medium text-sm">{h.isOwner ? `老闆 · ${h.name}` : h.name}</div>
-                {h.isOwner && <div className="text-amber-700/60 text-xs">老闆本人</div>}
-              </div>
-            </button>
-          ))}
-        </div>
-        <button onClick={onCancel} className="w-full py-2 text-amber-700 hover:text-amber-900 text-sm">取消</button>
       </div>
     </div>
   )
