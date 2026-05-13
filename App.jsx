@@ -138,42 +138,45 @@ export default function App({ liffProfile }) {
   )
 }
 
-// ============ 客人端(沒變動)============
+// ============ 客人端 ============
 // 後端 API 網址
 const API_BASE = 'https://fulong-line-webhook.jerry0928211793.workers.dev'
 
 function CustomerView({ liffProfile }) {
   const [page, setPage] = useState('home')
-  const [balance, setBalance] = useState(INITIAL_BALANCE)
+  const [balance, setBalance] = useState(null) // null = 載入中,[] = 沒資料,[...] = 有資料
+  const [customerData, setCustomerData] = useState(null)
+  const [loadError, setLoadError] = useState(null)
   const [pendingOrder, setPendingOrder] = useState(null)
   const [claimData, setClaimData] = useState(null)
   const [history, setHistory] = useState(INITIAL_HISTORY)
-  const [loading, setLoading] = useState(false)
-  const [apiError, setApiError] = useState(null)
-  const [usingRealData, setUsingRealData] = useState(false)
   
-  // 從後端讀取真實寄杯資料
+  // 從後端載入寄杯資料
   useEffect(() => {
-    if (!liffProfile?.userId) return // demo 模式不抓
+    if (!liffProfile?.userId) {
+      // 沒 LIFF profile = demo 模式,用寫死的資料
+      setBalance(INITIAL_BALANCE)
+      return
+    }
     
-    setLoading(true)
     fetch(`${API_BASE}/api/customer/${liffProfile.userId}`)
       .then(res => res.json())
       .then(data => {
-        if (data.found && data.balance) {
-          // 把後端 balance 格式轉成 React 需要的格式
-          setBalance(data.balance)
-          setUsingRealData(true)
-          console.log('✓ 載入真實寄杯資料:', data.balance.length, '筆')
+        if (data.found) {
+          setCustomerData(data.customer)
+          setBalance(data.balance || [])
+          console.log('✓ 載入真實寄杯資料:', data.balance?.length || 0, '筆')
         } else {
-          console.log('ℹ️ 後端沒找到該客人,使用展示資料')
+          // 後端找不到客人(沒加好友等)
+          setBalance([])
+          setCustomerData(null)
+          console.log('ℹ️ 後端沒找到該客人')
         }
-        setLoading(false)
       })
       .catch(err => {
-        console.warn('API 呼叫失敗(非致命):', err.message)
-        setApiError(err.message)
-        setLoading(false)
+        console.warn('API fetch failed:', err)
+        setLoadError(err.message)
+        setBalance(INITIAL_BALANCE) // fallback 到 demo 資料
       })
   }, [liffProfile])
   
@@ -212,6 +215,27 @@ function CustomerView({ liffProfile }) {
     setHistory([{ type: 'grant', grantedBy: claimData.grantedBy, name: claimData.name, qty: claimData.qty, interchangeable: claimData.interchangeable, temp: claimData.temp, timestamp: Date.now() }, ...history])
     setClaimData(null)
     setPage('home')
+  }
+  
+  if (balance === null) {
+    return (
+      <div className="space-y-4">
+        <div className="bg-gradient-to-br from-amber-800 to-amber-950 rounded-3xl p-7 shadow-2xl animate-pulse">
+          <div className="h-3 w-32 bg-amber-700/40 rounded mb-3" />
+          <div className="h-6 w-40 bg-amber-700/40 rounded mb-2" />
+          <div className="h-3 w-52 bg-amber-700/40 rounded mb-6" />
+          <div className="h-16 w-24 bg-amber-700/40 rounded" />
+        </div>
+        <div className="bg-amber-50 rounded-3xl p-6 shadow-xl animate-pulse">
+          <div className="h-4 w-24 bg-amber-200 rounded mb-4" />
+          <div className="space-y-3">
+            <div className="h-16 bg-amber-100 rounded-2xl" />
+            <div className="h-16 bg-amber-100 rounded-2xl" />
+            <div className="h-16 bg-amber-100 rounded-2xl" />
+          </div>
+        </div>
+      </div>
+    )
   }
   
   if (page === 'use') return <CustomerUse balance={balance} onBack={() => setPage('home')} onSubmit={handleSubmitOrder} />
