@@ -1,5 +1,14 @@
 import React, { useState } from 'react'
-import { Coffee, Smartphone, Tablet } from 'lucide-react'
+import { Coffee, Smartphone, Tablet, ArrowLeftRight, Flame, ChevronRight, ShoppingBag, ScanLine } from 'lucide-react'
+
+// ============ 模擬資料 ============
+const INITIAL_BALANCE = [
+  { itemId: 'americano', name: '美式咖啡', count: 8, interchangeable: true },
+  { itemId: 'latte', name: '拿鐵', count: 5, interchangeable: true },
+  { itemId: 'mocha', name: '摩卡', count: 3, temp: 'hot' },
+]
+
+const CUP_LIMIT = 60
 
 export default function App() {
   const [view, setView] = useState('customer')
@@ -25,36 +34,126 @@ export default function App() {
           </button>
         </div>
       </header>
-      <main className="max-w-2xl mx-auto px-6 py-8">
+      
+      <main className="max-w-md mx-auto px-6 py-4">
         {view === 'customer' ? <CustomerView /> : <StoreView />}
       </main>
+      
       <footer className="text-center py-8 text-amber-200/30 text-xs italic">
-        Prototype · 福龍門市寄杯系統 · v0.2
+        Prototype · 福龍門市寄杯系統 · v0.3
       </footer>
     </div>
   )
 }
 
 function CustomerView() {
+  const totalCups = INITIAL_BALANCE.reduce((sum, item) => sum + item.count, 0)
+  
   return (
-    <div className="bg-gradient-to-br from-amber-800 to-amber-950 rounded-3xl p-8 shadow-2xl">
-      <p className="text-amber-200/70 text-xs uppercase tracking-widest italic mb-2">Your Coffee Wallet</p>
-      <h2 className="text-amber-50 text-2xl font-bold mb-1">嗨,小華 👋</h2>
-      <p className="text-amber-200/70 text-sm mb-8">您在福龍門市的寄杯</p>
-      <div className="flex items-baseline gap-2 mb-2">
-        <span className="text-amber-50 text-7xl font-bold">16</span>
-        <span className="text-amber-100 text-2xl">杯</span>
+    <div className="space-y-4">
+      {/* 主餘額卡片 */}
+      <div className="bg-gradient-to-br from-amber-800 to-amber-950 rounded-3xl p-7 shadow-2xl">
+        <p className="text-amber-200/70 text-xs uppercase tracking-widest italic mb-2">
+          Your Coffee Wallet
+        </p>
+        <h2 className="text-amber-50 text-2xl font-bold mb-1">嗨,小華 👋</h2>
+        <p className="text-amber-200/70 text-sm mb-6">您在福龍門市的寄杯</p>
+        
+        <div className="flex items-baseline gap-2 mb-1">
+          <span className="text-amber-50 text-6xl font-bold">{totalCups}</span>
+          <span className="text-amber-100 text-xl">杯</span>
+        </div>
+        <p className="text-amber-200/60 text-xs mb-6">總餘額 · 上限 {CUP_LIMIT} 杯</p>
+        
+        <div className="grid grid-cols-2 gap-3">
+          <button className="bg-gradient-to-br from-amber-600 to-amber-700 rounded-2xl p-4 text-left hover:from-amber-500 hover:to-amber-600 transition">
+            <ShoppingBag className="w-5 h-5 text-amber-50 mb-2" />
+            <div className="text-amber-50 font-medium text-sm mb-0.5">使用寄杯</div>
+            <div className="text-amber-100/70 text-xs">點選想喝的</div>
+          </button>
+          <button className="bg-amber-50 text-amber-900 rounded-2xl p-4 text-left hover:bg-amber-100 transition">
+            <ScanLine className="w-5 h-5 text-amber-900 mb-2" />
+            <div className="font-medium text-sm mb-0.5">掃 QR 領取</div>
+            <div className="text-amber-700/70 text-xs">店員給的 QR</div>
+          </button>
+        </div>
       </div>
-      <p className="text-amber-200/60 text-sm mb-8">總餘額 · 上限 60 杯</p>
-      <div className="grid grid-cols-2 gap-3">
-        <button className="bg-gradient-to-br from-amber-600 to-amber-700 rounded-2xl p-4 text-left hover:from-amber-500 hover:to-amber-600 transition">
-          <div className="text-amber-50 font-medium mb-1">使用寄杯</div>
-          <div className="text-amber-100/70 text-xs">點選想喝的</div>
-        </button>
-        <button className="bg-amber-50 text-amber-900 rounded-2xl p-4 text-left hover:bg-amber-100 transition">
-          <div className="font-medium mb-1">掃 QR 領取</div>
-          <div className="text-amber-700/70 text-xs">店員給的 QR</div>
-        </button>
+      
+      {/* 寄杯卡清單區 */}
+      <div className="bg-amber-50 rounded-3xl p-6 shadow-xl">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-amber-900 font-bold text-base">我的寄杯卡</h3>
+          <button className="text-amber-700/70 text-xs flex items-center gap-1 hover:text-amber-900">
+            歷史紀錄
+            <ChevronRight className="w-3 h-3" />
+          </button>
+        </div>
+        
+        <div className="space-y-3">
+          {INITIAL_BALANCE.map(item => (
+            <CupCard key={item.itemId} item={item} />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CupCard({ item }) {
+  const isInterchangeable = item.interchangeable
+  const isHot = item.temp === 'hot'
+  
+  // 進度條:當前杯數佔上限 60 杯的比例(視覺上每張卡用 10 杯做滿條基準會比較易讀)
+  const progressPercent = Math.min((item.count / 10) * 100, 100)
+  
+  return (
+    <div className="bg-white rounded-2xl p-4 flex items-center gap-3">
+      {/* 左邊圖示 */}
+      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${
+        isInterchangeable 
+          ? 'bg-gradient-to-br from-indigo-100 to-purple-100' 
+          : 'bg-gradient-to-br from-orange-100 to-rose-100'
+      }`}>
+        {isInterchangeable ? (
+          <ArrowLeftRight className="w-5 h-5 text-indigo-600" />
+        ) : (
+          <Flame className="w-5 h-5 text-orange-600" />
+        )}
+      </div>
+      
+      {/* 中間資訊 */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-amber-900 font-bold">{item.name}</span>
+          {isInterchangeable ? (
+            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-medium">
+              <ArrowLeftRight className="w-2.5 h-2.5" />
+              冰熱可選
+            </span>
+          ) : isHot ? (
+            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 text-[10px] font-medium">
+              熱
+            </span>
+          ) : null}
+        </div>
+        
+        {/* 進度條 */}
+        <div className="w-full bg-amber-100 rounded-full h-1.5 overflow-hidden">
+          <div 
+            className={`h-full rounded-full ${
+              isInterchangeable 
+                ? 'bg-gradient-to-r from-indigo-400 to-purple-500'
+                : 'bg-gradient-to-r from-orange-400 to-rose-500'
+            }`}
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      </div>
+      
+      {/* 右邊數量 */}
+      <div className="flex items-baseline gap-0.5 flex-shrink-0">
+        <span className="text-amber-900 font-bold text-2xl">{item.count}</span>
+        <span className="text-amber-700 text-xs">杯</span>
       </div>
     </div>
   )
@@ -65,6 +164,7 @@ function StoreView() {
     <div className="bg-amber-50 text-amber-900 rounded-3xl p-8 shadow-2xl">
       <h2 className="text-2xl font-bold mb-2">門市端</h2>
       <p className="text-amber-700/70 text-sm mb-6">店員操作畫面(待搬移)</p>
+      
       <div className="space-y-3">
         <div className="bg-amber-100 rounded-xl p-4">
           <div className="text-xs text-amber-700 uppercase tracking-wider mb-1">即將上線</div>
