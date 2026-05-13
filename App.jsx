@@ -132,19 +132,50 @@ export default function App({ liffProfile }) {
       </main>
       
       <footer className="text-center py-8 text-amber-200/30 text-xs italic">
-        Prototype · 福龍門市寄杯系統 · v1.1
+        Prototype · 福龍門市寄杯系統 · v1.2
       </footer>
     </div>
   )
 }
 
 // ============ 客人端(沒變動)============
+// 後端 API 網址
+const API_BASE = 'https://fulong-line-webhook.jerry0928211793.workers.dev'
+
 function CustomerView({ liffProfile }) {
   const [page, setPage] = useState('home')
   const [balance, setBalance] = useState(INITIAL_BALANCE)
   const [pendingOrder, setPendingOrder] = useState(null)
   const [claimData, setClaimData] = useState(null)
   const [history, setHistory] = useState(INITIAL_HISTORY)
+  const [loading, setLoading] = useState(false)
+  const [apiError, setApiError] = useState(null)
+  const [usingRealData, setUsingRealData] = useState(false)
+  
+  // 從後端讀取真實寄杯資料
+  useEffect(() => {
+    if (!liffProfile?.userId) return // demo 模式不抓
+    
+    setLoading(true)
+    fetch(`${API_BASE}/api/customer/${liffProfile.userId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.found && data.balance) {
+          // 把後端 balance 格式轉成 React 需要的格式
+          setBalance(data.balance)
+          setUsingRealData(true)
+          console.log('✓ 載入真實寄杯資料:', data.balance.length, '筆')
+        } else {
+          console.log('ℹ️ 後端沒找到該客人,使用展示資料')
+        }
+        setLoading(false)
+      })
+      .catch(err => {
+        console.warn('API 呼叫失敗(非致命):', err.message)
+        setApiError(err.message)
+        setLoading(false)
+      })
+  }, [liffProfile])
   
   function handleSubmitOrder(selectedItems) {
     const orderNumber = 'A' + String(Math.floor(Math.random() * 900) + 100)
@@ -188,16 +219,26 @@ function CustomerView({ liffProfile }) {
   if (page === 'scan') return <CustomerScan onBack={() => setPage('home')} onSuccess={handleScanSuccess} />
   if (page === 'claim' && claimData) return <CustomerClaim claimData={claimData} onBack={() => setPage('home')} onConfirm={handleConfirmClaim} />
   if (page === 'history') return <CustomerHistory history={history} onBack={() => setPage('home')} />
-  return <CustomerHome liffProfile={liffProfile} balance={balance} onUse={() => setPage('use')} onScan={() => setPage('scan')} onHistory={() => setPage('history')} pendingOrder={pendingOrder} onViewOrder={() => setPage('order')} />
+  return <CustomerHome liffProfile={liffProfile} balance={balance} loading={loading} usingRealData={usingRealData} onUse={() => setPage('use')} onScan={() => setPage('scan')} onHistory={() => setPage('history')} pendingOrder={pendingOrder} onViewOrder={() => setPage('order')} />
 }
 
-function CustomerHome({ liffProfile, balance, onUse, onScan, onHistory, pendingOrder, onViewOrder }) {
+function CustomerHome({ liffProfile, balance, loading, usingRealData, onUse, onScan, onHistory, pendingOrder, onViewOrder }) {
   const totalCups = balance.reduce((sum, item) => sum + item.count, 0)
   const visibleBalance = balance.filter(b => b.count > 0)
   const displayName = liffProfile?.displayName || '小華'
   const isDemoMode = !liffProfile
   return (
     <div className="space-y-4">
+      {loading && (
+        <div className="bg-amber-700/30 text-amber-100 text-sm px-4 py-2 rounded-xl text-center">
+          載入您的寄杯資料中…
+        </div>
+      )}
+      {usingRealData && !loading && (
+        <div className="bg-green-700/30 text-green-100 text-xs px-4 py-1.5 rounded-full text-center">
+          ✓ 顯示真實資料(從 Supabase)
+        </div>
+      )}
       {pendingOrder && (
         <button onClick={onViewOrder} className="w-full bg-green-700 hover:bg-green-600 rounded-2xl p-4 flex items-center justify-between transition">
           <div className="text-left">
