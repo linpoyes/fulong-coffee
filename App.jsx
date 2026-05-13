@@ -88,7 +88,7 @@ function formatTimeAgo(timestamp) {
 }
 
 // ============ 主元件 ============
-export default function App() {
+export default function App({ liffProfile }) {
   const [view, setView] = useState('customer')
   const [storeUnlocked, setStoreUnlocked] = useState(false)
   
@@ -128,18 +128,18 @@ export default function App() {
       </header>
       
       <main className={view === 'store' ? "max-w-2xl mx-auto px-6 py-4" : "max-w-md mx-auto px-6 py-4"}>
-        {view === 'customer' ? <CustomerView /> : <StoreView />}
+        {view === 'customer' ? <CustomerView liffProfile={liffProfile} /> : <StoreView />}
       </main>
       
       <footer className="text-center py-8 text-amber-200/30 text-xs italic">
-        Prototype · 福龍門市寄杯系統 · v1.0
+        Prototype · 福龍門市寄杯系統 · v1.1
       </footer>
     </div>
   )
 }
 
 // ============ 客人端(沒變動)============
-function CustomerView() {
+function CustomerView({ liffProfile }) {
   const [page, setPage] = useState('home')
   const [balance, setBalance] = useState(INITIAL_BALANCE)
   const [pendingOrder, setPendingOrder] = useState(null)
@@ -188,12 +188,14 @@ function CustomerView() {
   if (page === 'scan') return <CustomerScan onBack={() => setPage('home')} onSuccess={handleScanSuccess} />
   if (page === 'claim' && claimData) return <CustomerClaim claimData={claimData} onBack={() => setPage('home')} onConfirm={handleConfirmClaim} />
   if (page === 'history') return <CustomerHistory history={history} onBack={() => setPage('home')} />
-  return <CustomerHome balance={balance} onUse={() => setPage('use')} onScan={() => setPage('scan')} onHistory={() => setPage('history')} pendingOrder={pendingOrder} onViewOrder={() => setPage('order')} />
+  return <CustomerHome liffProfile={liffProfile} balance={balance} onUse={() => setPage('use')} onScan={() => setPage('scan')} onHistory={() => setPage('history')} pendingOrder={pendingOrder} onViewOrder={() => setPage('order')} />
 }
 
-function CustomerHome({ balance, onUse, onScan, onHistory, pendingOrder, onViewOrder }) {
+function CustomerHome({ liffProfile, balance, onUse, onScan, onHistory, pendingOrder, onViewOrder }) {
   const totalCups = balance.reduce((sum, item) => sum + item.count, 0)
   const visibleBalance = balance.filter(b => b.count > 0)
+  const displayName = liffProfile?.displayName || '小華'
+  const isDemoMode = !liffProfile
   return (
     <div className="space-y-4">
       {pendingOrder && (
@@ -207,8 +209,10 @@ function CustomerHome({ balance, onUse, onScan, onHistory, pendingOrder, onViewO
       )}
       <div className="bg-gradient-to-br from-amber-800 to-amber-950 rounded-3xl p-7 shadow-2xl">
         <p className="text-amber-200/70 text-xs uppercase tracking-widest italic mb-2">Your Coffee Wallet</p>
-        <h2 className="text-amber-50 text-2xl font-bold mb-1">嗨,小華 👋</h2>
-        <p className="text-amber-200/70 text-sm mb-6">您在福龍門市的寄杯</p>
+        <h2 className="text-amber-50 text-2xl font-bold mb-1">嗨,{displayName} 👋</h2>
+        <p className="text-amber-200/70 text-sm mb-6">
+          您在福龍門市的寄杯{isDemoMode && <span className="opacity-50">(展示模式)</span>}
+        </p>
         <div className="flex items-baseline gap-2 mb-1">
           <span className="text-amber-50 text-6xl font-bold">{totalCups}</span>
           <span className="text-amber-100 text-xl">杯</span>
